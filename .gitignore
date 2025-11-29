@@ -1,5 +1,6 @@
 /dev
 **/local
+test/local/
 
 **/build
 **/bin
