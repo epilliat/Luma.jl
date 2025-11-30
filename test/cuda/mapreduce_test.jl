@@ -78,6 +78,7 @@ end
         )
     end
 
+    reduce_func(acc::Output3) = acc
     ns = [105, 100_000, 1_000_001]
 
     for n in ns

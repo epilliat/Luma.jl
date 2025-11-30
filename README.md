@@ -2,6 +2,8 @@
 
 High-performance, portable GPU primitives for Julia (currently CUDA-only). Pure Julia implementation with performance competitive against optimized CUDA C++ libraries.
 
+> 📄 A paper describing this work is in preparation. If you use this code, please check back for citation details.
+
 ## Installation
 
 ```julia
