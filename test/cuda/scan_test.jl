@@ -1,5 +1,5 @@
 n = 100000
-op = +
+op(x...) = *(x...)
 T = Float32
 src_cpu = [rand() for i in (1:n)]
 src = CuArray{T}(src_cpu)

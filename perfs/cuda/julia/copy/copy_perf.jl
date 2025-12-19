@@ -12,7 +12,7 @@ using Quaternions
 
 
 #%%
-n = 100000000
+n = 10000000
 T = Float32
 src_cpu = [1.0f0 for i in (1:n)]
 src = CuArray{T}(src_cpu)

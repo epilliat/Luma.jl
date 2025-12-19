@@ -189,15 +189,14 @@ tmp = CuArray{UInt8}(undef, sum(get_partition_sizes(blocks, Float32, Int32)))
 # See Also
 - [`get_partition_sizes`](@ref): Computes the required sizes
 """
-function partition(tmp::AbstractVector{UInt8}, blocks, Types...)
-    sizes = get_partition_sizes(blocks, Types...)
+function partition(tmp::AbstractVector{UInt8}, dim, Types...)
+    sizes = get_partition_sizes(dim, Types...)
     accum_sizes = (0, accumulate(+, sizes)...)
     return (
         reinterpret(T, view(tmp, accum_sizes[i]+1:accum_sizes[i+1]))
         for (i, T) in enumerate(Types)
     )
 end
-
 """
     get_default_config(obj::KernelAbstractions.Kernel, args...)
 
@@ -237,7 +236,7 @@ end
 - [`get_default_config_cached`](@ref): Cached version avoiding recomputation
 """
 function get_default_config(obj::KernelAbstractions.Kernel, args...)
-    return (workgroup=256, blocks=100)
+    return (workgroup=256, blocks=40)
 end
 
 """
@@ -285,73 +284,25 @@ function get_default_config_cached(obj::K, args...) where {K<:KernelAbstractions
     return config
 end
 
-"""
-    default_value(::Type{T}) where T
 
-Generate a default zero-initialized value for a bitstype `T`.
-
-Creates an instance of type `T` with all bits set to zero, without requiring
-a zero constructor to be defined for `T`. Useful for initializing custom types
-in GPU kernels where constructors may not be available.
-
-# Arguments
-- `T`: A bitstype (primitive type or immutable struct with only bitstype fields)
-
-# Returns
-Zero-initialized instance of type `T`
-
-# Throws
-- Error if `T` is not a bitstype
-- Error if `T` has zero size
-
-# Examples
-```julia
-# Built-in types
-default_value(Float32)    # 0.0f0
-default_value(Int64)      # 0
-default_value(UInt8)      # 0x00
-
-# Custom bitstype
-struct MyType
-    x::Float32
-    y::Int32
-end
-
-default_value(MyType)     # MyType(0.0f0, 0)
-```
-
-# GPU Usage
-```julia
-# Initialize shared memory in GPU kernel
-@inline function my_kernel!()
-    shared = @cuDynamicSharedMem(MyCustomType, 256)
-    if threadIdx().x == 1
-        shared[1] = default_value(MyCustomType)
+@inline @generated function tree_reduce(op::OP, data::NTuple{N,T}) where {OP,T,N}
+    function build_tree(indices)
+        count = length(indices)
+        if count == 1
+            return Symbol(:v_, indices[1])
+        elseif count == 2
+            return :(op($(Symbol(:v_, indices[1])), $(Symbol(:v_, indices[2]))))
+        else
+            mid = count ÷ 2
+            left = build_tree(indices[1:mid])
+            right = build_tree(indices[mid+1:end])
+            return :(op($left, $right))
+        end
     end
-end
-```
 
-# Implementation
-Uses `reinterpret` on a tuple of zero bytes with length equal to `sizeof(T)`.
-This is a compile-time operation for constant types.
-
-# Limitations
-- Only works for bitstypes (no pointers, no heap allocations)
-- Returns type with all bits zero (may not be semantically meaningful for all types)
-"""
-@generated function dummy_value(::Type{T}) where T
-    if isbitstype(T)
-        nbytes = Base.packedsize(T)
-        if nbytes == 0
-            return :(error("Cannot create instance of zero-sized type $T"))
-        end
-        bytes = ntuple(i -> zero(UInt8), Val(nbytes))
-        # Create from zero bits
-        u = reinterpret(T, bytes)
-        return quote
-            $u
-        end
-    else
-        return :(error("Cannot create dummy value for non-bitstype $T"))
+    quote
+        Base.@_inline_meta
+        Base.Cartesian.@nexprs $N i -> v_i = @inbounds data[i]
+        $(build_tree(collect(1:N)))
     end
 end

@@ -33,12 +33,9 @@ algo = "Sum"
 #====================== Sum ===================#
 N = Int(1e6)
 prof = []
-for T in [Float32, Float64, UnitFloat8]
+for T in [Float32, UnitFloat8]
     op = +
-    f(x) = x
-    if T == UnitFloat8
-        f(x) = Float32(x)
-    end
+    f = identity
     src = CuArray{T}([1 for _ in (1:N)])
     dst = CuArray{T}([0])
 
@@ -65,7 +62,7 @@ end
 
 algo = "Sum"
 config = nothing
-for T in [Float32, Float64, UnitFloat8]
+for T in [Float32, UnitFloat8]
     op = +
     f(x) = x
     FlagType = UInt64
@@ -75,21 +72,21 @@ for T in [Float32, Float64, UnitFloat8]
     name = "Luma Opt"
 
     start_time = time()
-    tmp = get_allocation(Luma.mapreduce1d!, f, op, dst, (src,); FlagType=FlagType, config=config)
+    tmp = get_allocation(Luma.mapreduce1d!, f, op, dst, (src,); FlagType=FlagType)
     while time() - start_time < 0.500  # 500ms warm-up
         CUDA.@sync Luma.mapreduce!(f, op, dst, src)
     end
 
-    prof = [CUDA.@profile Luma.mapreduce!(f, op, dst, src; tmp=tmp, FlagType=FlagType, config=config) for _ in (1:100)]
+    prof = [CUDA.@profile Luma.mapreduce!(f, op, dst, src; FlagType=FlagType) for _ in (1:100)]
     dt = 0
     dts = []
     while dt <= 2 * tmax_timed
-        timed = (CUDA.@timed Luma.mapreduce!(f, op, dst, src; tmp=tmp, FlagType=FlagType, config=config))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
+        timed = (CUDA.@timed Luma.mapreduce!(f, op, dst, src; FlagType=FlagType))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
         u = timed[:time]
         dt += u
         push!(dts, u)
     end
-    timed = (CUDA.@timed Luma.mapreduce!(f, op, dst, src; tmp=tmp, FlagType=FlagType, config=config))
+    timed = (CUDA.@timed Luma.mapreduce!(f, op, dst, src; FlagType=FlagType))
     benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
 end
 
@@ -494,3 +491,33 @@ combined_plot = Plots.plot(plot1_nof64, plot2_nof64,
 )
 
 savefig(combined_plot, "$(@__DIR__())/../figures/mapreduce_nof64_1e6_1e8.png")
+
+
+
+#%%
+using CUDA
+
+T = UnitFloat8
+N = 1_000_000
+src = CuArray{T}(ones(T, N))
+dst = CuArray{T}([zero(T)])
+
+# Test 1: Is allocation slow?
+@time tmp = get_allocation(Luma.mapreduce1d!, identity, +, dst, (src,))
+
+# Test 2: Is config computation slow?
+@time begin
+    backend = get_backend(src)
+    kernel = Luma.mapreduce1d_kernel!(backend, 10000, 100000)
+    dummy_flag = CUDA.zeros(UInt8, 0)
+    config = Luma.get_default_config(kernel, identity, +, dst, (src,), identity, Val(8), dst, dummy_flag, UInt8(0))
+end
+
+# Test 3: Is the kernel launch itself slow (after warm-up)?
+CUDA.@sync Luma.mapreduce!(identity, +, dst, src)  # Warm-up
+@time CUDA.@sync Luma.mapreduce!(identity, +, dst, src)  # Should be fast now
+
+# Test 4: Is it slow again with fresh arrays?
+src2 = CuArray{T}(ones(T, N))
+dst2 = CuArray{T}([zero(T)])
+@time CUDA.@sync Luma.mapreduce!(identity, +, dst2, src2)  # Same types, should hit cache

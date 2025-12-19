@@ -12,9 +12,9 @@
                         src = cu(T.([i for i in 1:n]))
                         dst = cu([T(0)])
 
-                        # Get allocation
-                        tmp = get_allocation(Luma.mapreduce1d!, f, op, dst, (src,);
-                            FlagType=UInt64, config=(workgroup=256, blocks=400))
+                        # Get allocation - H is T since f=identity
+                        tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,);
+                            blocks=400, H=T, FlagType=UInt64)
 
                         # Warm up
                         CUDA.@sync Luma.mapreduce!(f, op, dst, src, FlagType=UInt64)
@@ -78,7 +78,7 @@ end
         )
     end
 
-    reduce_func(acc::Output3) = acc
+    #reduce_func(acc::Output3) = acc
     ns = [105, 100_000, 1_000_001]
 
     for n in ns
@@ -96,9 +96,9 @@ end
 
                 dst = cu([Output3(Float32(0), Float32(0), Float32(0))])
 
-                # Get allocation
-                tmp = get_allocation(Luma.mapreduce1d!, map_func, reduce_func, dst, (src,);
-                    FlagType=UInt64, config=(workgroup=256, blocks=400))
+                # Get allocation - H is Output3 (result type of map_func)
+                tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,);
+                    blocks=400, H=Output3, FlagType=UInt64)
 
                 # Warm up
                 CUDA.@sync Luma.mapreduce!(map_func, reduce_func, dst, src, FlagType=UInt64)

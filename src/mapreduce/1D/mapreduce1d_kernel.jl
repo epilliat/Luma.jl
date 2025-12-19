@@ -5,15 +5,15 @@ T -> f -> H -> op -> H -> g -> S
 """
 
 @kernel function mapreduce1d_kernel!(
-    f::F, op::O,
+    f, op,
     dst::AbstractArray{S},
     srcs::NTuple{U,AbstractArray{T}},
-    g::G,
+    g,
     ::Val{Nitem},
     partial::AbstractArray{H},
     flag::AbstractArray{FlagType},
     targetflag::FlagType
-) where {F<:Function,O<:Function,G<:Function,U,T,H,S,FlagType<:Integer,Nitem}
+) where {U,T,H,S,FlagType<:Integer,Nitem}
 
     N = length(srcs[1])
     workgroup = Int(@groupsize()[1])
@@ -35,20 +35,21 @@ T -> f -> H -> op -> H -> g -> S
 
     begin
         #val = op(f.(vload(srcs[1], i, Val(Nitem)))...)
-        val = op(broadcast_apply_across(f, srcs, i, Val(Nitem))...)
+        values = broadcast_apply_across(f, srcs, i, Val(Nitem))
+        val = tree_reduce(op, values)
         srcs
         i += ndrange
         while i * Nitem <= N
             #val = op(val, f.(vload(srcs[1], i, Val(Nitem)))...)
-            val = op(val, broadcast_apply_across(f, srcs, i, Val(Nitem))...)
+            values = broadcast_apply_across(f, srcs, i, Val(Nitem))
+            val = op(val, tree_reduce(op, values))
 
             i += ndrange
         end
         id_base = (i - 1) * Nitem + 1
         if id_base <= N
             for j in id_base:N
-                x = f(srcs[1][j])
-                val = op(val, x)
+                val = op(val, tree_reduce(op, broadcast_apply_across(f, srcs, j, Val(1))))
             end
         end
     end
