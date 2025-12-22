@@ -55,19 +55,15 @@
     end
 
     prefix = val
-    if gid >= 2 && warp_id == nwarps# && last_idx <= N
+    if gid >= 2 && warp_id == nwarps
         lookback = 0
         contains_prefix = false
-        cpt = 0
-        while lookback + 1 < gid && !@shfl(Idx, contains_prefix, 1, warpsz) && cpt < 100000
-            cpt += 1
+        while lookback + 1 < gid && !@shfl(Idx, contains_prefix, 1, warpsz)
             idx_lookback = max(gid - lookback - lane, 1)
             @access flg = flag[idx_lookback]
             has_aggregate = (targetflag <= flg <= targetflag + FlagType(1))
             if @vote(All, has_aggregate)
                 has_prefix = (flg == targetflag + FlagType(1))
-                #@inbounds val = has_prefix ? partial2[idx_lookback] : partial1[idx_lookback]
-                cpt == 3 #&& @print("$lookback")
                 if has_prefix
                     val = partial2[idx_lookback]
                 else

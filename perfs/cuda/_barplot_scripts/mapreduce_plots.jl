@@ -258,14 +258,14 @@ end
 for T in [Float32, UnitFloat8]
   op = +
   f = T == UnitFloat8 ? (x -> Float32(x)) : identity
-  H = T == UnitFloat8 ? Float32 : T  # Intermediate type after f
+  eltype = T == UnitFloat8 ? Float32 : T  # Intermediate type after f
   FlagType = UInt64
   blocks = 100  # Default block count for pre-allocation
 
   src = CuArray{T}(ones(T, N))
   dst = CuArray{T}([zero(T)])
 
-  tmp = Luma._get_allocation(Luma.mapreduce1d!, (src,); blocks, H, FlagType)
+  tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks, eltype, FlagType)
 
   run_benchmark!(bench,
     () -> Luma.mapreduce!(f, op, dst, src; tmp, FlagType),
@@ -303,7 +303,8 @@ for T in [Float32, UnitFloat8]
     () -> AK.mapreduce(f, op, src; init=T(0)),
     T, N, "AK", algo)
 end
-
+src = CuArray{Float32}(ones(T, N))
+prof = CUDA.@profile AK.mapreduce(f, op, src; init=T(0))
 #=============================================================================
   SECTION 5: CUB Reference Times (N = 100M)
   -----------------------------------------

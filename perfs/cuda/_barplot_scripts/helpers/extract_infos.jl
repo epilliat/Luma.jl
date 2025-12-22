@@ -83,19 +83,82 @@ function extract_kernel_name(name_str)
 end
 
 """
-    analyze_cuda_profile(df::DataFrame)
+    normalize_kernel_name(name_str, grid, block)
+
+Create a normalized kernel name that includes grid and block configuration.
+This allows proper grouping of kernel invocations with the same configuration
+while distinguishing those with different configurations.
+
+Returns: "base_kernel_name [grid×block]" or normalized copy operation name
+"""
+function normalize_kernel_name(name_str, grid, block)
+    if ismissing(name_str)
+        return "missing"
+    end
+
+    name_string = string(name_str)
+
+    if name_string == "" || name_string == "missing"
+        return name_string
+    end
+
+    # Handle memory copy operations - normalize
+    if occursin("[copy", name_string)
+        if occursin("device to pageable", name_string)
+            return "[copy device to pageable]"
+        elseif occursin("pageable to device", name_string)
+            return "[copy pageable to device]"
+        elseif occursin("device to device", name_string)
+            return "[copy device to device]"
+        else
+            return "[copy]"
+        end
+    end
+
+    # Extract the base kernel function name (before any template parameters)
+    base_name = replace(name_string, "void " => "")
+
+    if occursin("<", base_name)
+        base_name = split(base_name, "<")[1]
+    end
+    base_name = strip(base_name)
+
+    # Format grid and block info
+    grid_str = ismissing(grid) ? "?" : string(grid)
+    block_str = ismissing(block) ? "?" : string(block)
+
+    return "$(base_name) [$(grid_str)×$(block_str)]"
+end
+
+"""
+    analyze_cuda_profile(prof)
 
 Analyze CUDA profiling data and return useful statistics grouped by kernel names.
+Kernels are grouped by base name + grid + block configuration.
 """
-function analyze_cuda_profile(prof)
+function analyze_cuda_profile(prof; include_copies=false)
     df = prof.device
     df.dt = (df.stop - df.start) * 1e6
 
     # Create a cleaned dataframe
     clean_df = DataFrame()
 
-    # Extract kernel names from the 'name' column
-    clean_df.kernel_name = df.name
+    # Check if grid/block columns exist
+    has_grid = hasproperty(df, :grid)
+    has_block = hasproperty(df, :block)
+
+    # Extract kernel names normalized with grid/block info
+    clean_df.kernel_name = [
+        normalize_kernel_name(
+            df.name[i],
+            has_grid ? df.grid[i] : missing,
+            has_block ? df.block[i] : missing
+        )
+        for i in 1:nrow(df)
+    ]
+
+    # Also keep the base kernel name for reference
+    clean_df.base_kernel_name = extract_kernel_name.(df.name)
 
     # Extract duration from 'dt' column
     clean_df.duration_us = [ismissing(x) ? 0.0 : Float64(x) for x in df.dt]
@@ -111,9 +174,10 @@ function analyze_cuda_profile(prof)
     clean_df.device = df.device
     clean_df.stream = df.stream
 
-    # Group by kernel name and calculate statistics
+    # Group by normalized kernel name (includes grid/block) and calculate statistics
     grouped_stats = combine(groupby(clean_df, :kernel_name)) do group
         DataFrame(
+            base_kernel_name=first(group.base_kernel_name),
             count=nrow(group),
             mean_duration_us=mean(group.duration_us),
             median_duration_us=median(group.duration_us),
@@ -131,6 +195,42 @@ function analyze_cuda_profile(prof)
     # Sort by total duration (most time-consuming kernels first)
     sort!(grouped_stats, :total_duration_us, rev=true)
 
+    if !include_copies
+        grouped_stats = filter(row -> !occursin("[copy", row.kernel_name), grouped_stats)
+        clean_df = filter(row -> !occursin("[copy", row.kernel_name), clean_df)
+    end
+    return grouped_stats, clean_df
+end
+
+"""
+    analyze_cuda_profile_by_base_kernel(prof)
+
+Alternative analysis that groups ALL invocations of the same base kernel together,
+regardless of grid/block configuration. Useful for seeing total time spent in each
+kernel function across all its different launch configurations.
+"""
+function analyze_cuda_profile_by_base_kernel(prof)
+    df = prof.device
+    df.dt = (df.stop - df.start) * 1e6
+
+    clean_df = DataFrame()
+    clean_df.kernel_name = extract_kernel_name.(df.name)
+    clean_df.duration_us = [ismissing(x) ? 0.0 : Float64(x) for x in df.dt]
+
+    # Group by base kernel name only
+    grouped_stats = combine(groupby(clean_df, :kernel_name)) do group
+        DataFrame(
+            count=nrow(group),
+            total_duration_us=sum(group.duration_us),
+            mean_duration_us=mean(group.duration_us),
+            median_duration_us=median(group.duration_us),
+            std_duration_us=nrow(group) > 1 ? std(group.duration_us) : 0.0,
+            min_duration_us=minimum(group.duration_us),
+            max_duration_us=maximum(group.duration_us),
+        )
+    end
+
+    sort!(grouped_stats, :total_duration_us, rev=true)
     return grouped_stats, clean_df
 end
 
@@ -152,6 +252,7 @@ function analyze_cuda_profile(profs::Vector)
         n = length(durations)
 
         DataFrame(
+            base_kernel_name=first(group.base_kernel_name),
             count=n,
             mean_duration_us=mean(durations),
             median_duration_us=median(durations),
@@ -186,25 +287,44 @@ function export_stats_to_csv(stats::DataFrame, filename::String)
     CSV.write(filename, stats)
     println("Statistics exported to ", filename)
 end
-# 
-# Or for just the aggregated stats:
-# agg_stats = get_aggregated_stats("cuda_profile.csv")
+
+"""
+    benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
+
+Process profiling data and add summary to benchmark DataFrame.
+
+Key metrics computed:
+- mean_duration_gpu: Total GPU time per single execution (sum of all kernel times / n_profile_runs)
+- Individual kernel times use total_duration / n_profile_runs to get per-execution time
+
+The key insight: prof is a Vector of 100 profile results. Each profile result contains
+all kernel calls from one execution. So:
+- total_duration_us across all profiles = sum over 100 runs
+- per-run GPU time = total_duration_us / 100
+"""
 function benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
     stats, clean_data = analyze_cuda_profile(prof)
     d = Dict()
 
     # Filter out copy operations
-    gpu_only_stats = filter(row -> !occursin("[copy pageable", row.kernel_name), stats)
+    gpu_only_stats = filter(row -> !occursin("[copy", row.kernel_name), stats)
 
-    # Number of unique kernels (excluding copy operations)
+    # Number of unique kernel configurations (excluding copy operations)
     n_kernels = nrow(gpu_only_stats)
 
-    # GPU statistics with sqrt(n)
-    d[:mean_duration_gpu] = sum(gpu_only_stats.mean_duration_us)
-    d[:std_duration_gpu] = sqrt(sum(gpu_only_stats.std_duration_us .^ 2)) / sqrt(n_kernels)
-    d[:std_perc_duration_gpu] = round(d[:std_duration_gpu] / d[:mean_duration_gpu] * 100, digits=1)
+    # Number of profile runs
+    n_profile_runs = length(prof)
 
-    # NEW: Median dustopration for total GPU time (sum of medians)
+    # Total GPU time per run = sum of all kernel total_durations / n_runs
+    total_gpu_time_all_runs = sum(gpu_only_stats.total_duration_us)
+    d[:mean_duration_gpu] = total_gpu_time_all_runs / n_profile_runs
+
+    # Standard deviation (propagate from individual kernels)
+    d[:std_duration_gpu] = sqrt(sum(gpu_only_stats.std_duration_us .^ 2))
+    d[:std_perc_duration_gpu] = d[:mean_duration_gpu] > 0 ?
+                                round(d[:std_duration_gpu] / d[:mean_duration_gpu] * 100, digits=1) : 0.0
+
+    # Median: sum of median times per kernel
     d[:median_duration_gpu] = sum(gpu_only_stats.median_duration_us)
 
     # Memory information
@@ -214,43 +334,39 @@ function benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
     # Pipeline timing statistics
     d[:min_duration_pipeline] = round(minimum(dts) * 1e6, digits=1)
     d[:median_duration_pipeline] = round(median(dts) * 1e6, digits=1)
-    d[:mean_duration_pipeline] = round(mean(dts) * 1e6, digits=1)  # NEW: mean pipeline duration
-    d[:std_duration_pipeline] = round(std(dts) * 1e6, digits=1)    # NEW: std pipeline duration
+    d[:mean_duration_pipeline] = round(mean(dts) * 1e6, digits=1)
+    d[:std_duration_pipeline] = round(std(dts) * 1e6, digits=1)
     d[:quantile_dev_pipeline] = round((quantile(dts, 0.75) - quantile(dts, 0.25)) * 1e6, digits=1)
     d[:quantile_perc_dev_pipeline] = round(d[:quantile_dev_pipeline] / d[:median_duration_pipeline] * 100, digits=1)
 
-    # Enhancement 1: Add individual kernel times sorted by duration
-    # Sort kernels by mean duration in descending order
-    sorted_kernels = sort(gpu_only_stats, :mean_duration_us, rev=true)
+    # Sort kernels by per-run time (total / n_runs), most time-consuming first
+    sorted_kernels = sort(gpu_only_stats, :total_duration_us, rev=true)
 
-    # Add individual kernel times with mean, median, and quantile statistics
+    # Add individual kernel times
     for (i, row) in enumerate(eachrow(sorted_kernels))
-        # Mean duration (original)
+        # Per-run time for this kernel config
         kernel_key = Symbol("kernel", i)
-        d[kernel_key] = row.mean_duration_us
+        d[kernel_key] = row.total_duration_us / n_profile_runs
 
-        # Kernel name for reference
+        # Kernel name (includes grid×block info)
         d[Symbol("kernel", i, "_name")] = row.kernel_name
 
-        # NEW: Median duration for each kernel
+        # Median duration per call
         d[Symbol("kernel", i, "_median")] = row.median_duration_us
 
-        # NEW: For kernels with multiple invocations, compute quantile deviation
+        # Quantile deviation
         if row.count > 1
-            # Get the raw data for this specific kernel from clean_data
             kernel_data = filter(r -> r.kernel_name == row.kernel_name, clean_data)
 
             if nrow(kernel_data) > 0
                 kernel_durations = kernel_data.duration_us
 
-                # Quantile deviation (IQR) for this kernel
                 q75 = quantile(kernel_durations, 0.75)
                 q25 = quantile(kernel_durations, 0.25)
                 kernel_quantile_dev = round(q75 - q25, digits=1)
 
                 d[Symbol("kernel", i, "_quantile_dev")] = kernel_quantile_dev
 
-                # Quantile percentage deviation relative to median
                 if row.median_duration_us > 0
                     d[Symbol("kernel", i, "_quantile_perc_dev")] = round(kernel_quantile_dev / row.median_duration_us * 100, digits=1)
                 else
@@ -261,30 +377,24 @@ function benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
                 d[Symbol("kernel", i, "_quantile_perc_dev")] = 0.0
             end
         else
-            # Single invocation - no variation
             d[Symbol("kernel", i, "_quantile_dev")] = 0.0
             d[Symbol("kernel", i, "_quantile_perc_dev")] = 0.0
         end
     end
 
-    # Enhancement 2: Add cumulative kernel times (for mean and median)
-    cumulative_time_mean = 0.0
+    # Cumulative kernel times (per run)
+    cumulative_time = 0.0
     cumulative_time_median = 0.0
 
     for (i, row) in enumerate(eachrow(sorted_kernels))
-        # Cumulative mean time
-        cumulative_time_mean += row.mean_duration_us
-        kernel_acc_key = Symbol("kernel", i, "_acc")
-        d[kernel_acc_key] = cumulative_time_mean
+        cumulative_time += row.total_duration_us / n_profile_runs
+        d[Symbol("kernel", i, "_acc")] = cumulative_time
 
-        # NEW: Cumulative median time
         cumulative_time_median += row.median_duration_us
-        kernel_acc_median_key = Symbol("kernel", i, "_acc_median")
-        d[kernel_acc_median_key] = cumulative_time_median
+        d[Symbol("kernel", i, "_acc_median")] = cumulative_time_median
     end
 
-    # NEW: Overall GPU quantile statistics (if we have multiple samples per kernel)
-    # Aggregate all GPU kernel durations
+    # Overall GPU quantile statistics
     all_gpu_durations = Float64[]
     for kernel_row in eachrow(gpu_only_stats)
         kernel_data = filter(r -> r.kernel_name == kernel_row.kernel_name, clean_data)
@@ -299,9 +409,10 @@ function benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
         d[:quantile_perc_dev_gpu] = 0.0
     end
 
-    # Optional: Add summary statistics about kernels
     d[:n_kernels] = n_kernels
-    d[:top_kernel_percentage] = n_kernels > 0 ? round(sorted_kernels[1, :mean_duration_us] / d[:mean_duration_gpu] * 100, digits=1) : 0.0
+    d[:n_profile_runs] = n_profile_runs
+    d[:top_kernel_percentage] = n_kernels > 0 ?
+                                round((sorted_kernels[1, :total_duration_us] / n_profile_runs) / d[:mean_duration_gpu] * 100, digits=1) : 0.0
 
     d[:datatype] = T
     d[:datalength] = N

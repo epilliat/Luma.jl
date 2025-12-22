@@ -63,12 +63,12 @@ function mapreduce2d_ver!(
 
     def_nitem = default_nitem(mapreduce2d_ver!, T)
     if isnothing(config) # Maybe we should be able to query the number of SMs instead
-        kernel = mapreduce2d_ver_splitgrid_kernel!(backend, 10000, 100000) # dummy high values for launch config
-        dummy_flag_array = KernelAbstractions.allocate(backend, FlagType, 0)
-        dummy_partial = dst # we could put KernelAbstractions.allocate(backend, H, 0) for more accuracy
-        config = get_default_config(kernel, f, op, dst, srcs, g, Val(def_nitem), Val(1), dummy_partial, dummy_flag_array, FlagType(0)) #time costly with @eval only the first time, then cached
+        #kernel = mapreduce2d_ver_splitgrid_kernel!(backend, 10000, 100000) # dummy high values for launch config
+        #dummy_flag_array = KernelAbstractions.allocate(backend, FlagType, 0)
+        #dummy_partial = dst # we could put KernelAbstractions.allocate(backend, H, 0) for more accuracy
+        #config = get_default_config(kernel, f, op, dst, srcs, g, Val(def_nitem), Val(1), dummy_partial, dummy_flag_array, FlagType(0)) #time costly with @eval only the first time, then cached
         #@show kernel, config
-        workgroup, blocks = 256, config.blocks # take a power of 2 for workgroup
+        workgroup, blocks = 256, 100 # take a power of 2 for workgroup
     else
         workgroup, blocks = config
     end
