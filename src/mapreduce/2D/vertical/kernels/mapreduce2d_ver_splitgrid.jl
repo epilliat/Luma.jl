@@ -39,19 +39,20 @@
                 val = op(val, values[j])
             end
         else
-            val = op(values...)
+            val = tree_reduce(op, values)
         end
     end
     i = id_base + Nthreads
     while i * Nitem <= chid * n
-        #val = op(val, f.(vload(srcs[1], i, Val(Nitem)))...)
-        val = op(val, broadcast_apply_across(f, srcs, i, Val(Nitem))...)
+        values = broadcast_apply_across(f, srcs, i, Val(Nitem))
+        val = op(val, tree_reduce(op, values))
         i += Nthreads
     end
     id_base = (i - 1) * Nitem + 1
     if id_base <= chid * n
         for j in id_base:chid*n
-            val = op(val, broadcast_apply_across(f, srcs, j, Val(1))...)
+            values = broadcast_apply_across(f, srcs, j, Val(1))
+            val = op(val, tree_reduce(op, values))
         end
     end
 

@@ -34,13 +34,11 @@ T -> f -> H -> op -> H -> g -> S
     i = I
 
     begin
-        #val = op(f.(vload(srcs[1], i, Val(Nitem)))...)
         values = broadcast_apply_across(f, srcs, i, Val(Nitem))
         val = tree_reduce(op, values)
         srcs
         i += ndrange
         while i * Nitem <= N
-            #val = op(val, f.(vload(srcs[1], i, Val(Nitem)))...)
             values = broadcast_apply_across(f, srcs, i, Val(Nitem))
             val = op(val, tree_reduce(op, values))
 
