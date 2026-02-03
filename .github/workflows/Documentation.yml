@@ -5,6 +5,9 @@ on:
       - main
     tags: '*'
   pull_request:
+permissions:
+  contents: write
+  statuses: write
 jobs:
   build:
     runs-on: ubuntu-latest
