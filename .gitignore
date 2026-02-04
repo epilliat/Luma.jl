@@ -7,3 +7,4 @@ test/local/
 *.csv
 /perfs/cuda/figures
 Manifest.toml
+docs/Manifest.toml
