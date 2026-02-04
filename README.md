@@ -1,4 +1,4 @@
-# Luma.jl
+# KernelForge.jl
 
 High-performance, portable GPU primitives for Julia. A pure Julia implementation delivering performance competitive with optimized CUDA C++ libraries.
 
@@ -8,9 +8,9 @@ High-performance, portable GPU primitives for Julia. A pure Julia implementation
 
 > ℹ️ **Architecture & Contributions**
 > 
-> Luma.jl builds on [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl) for GPU kernel dispatch. However, certain low-level operations—including warp shuffle instructions, vectorized memory access, and memory ordering semantics—are not yet available in KA.jl, so we use [KernelIntrinsics.jl](https://github.com/...) for these primitives. As KernelIntrinsics.jl currently supports only CUDA, Luma.jl is likewise restricted to CUDA.
+> KernelForge.jl builds on [KernelAbstractions.jl](https://github.com/JuliaGPU/KernelAbstractions.jl) for GPU kernel dispatch. However, certain low-level operations—including warp shuffle instructions, vectorized memory access, and memory ordering semantics—are not yet available in KA.jl, so we use [KernelIntrinsics.jl](https://github.com/...) for these primitives. As KernelIntrinsics.jl currently supports only CUDA, KernelForge.jl is likewise restricted to CUDA.
 > 
-> **The core contribution of this package lies in the GPU kernel implementations themselves**, designed to be portable once the underlying intrinsics become available on other backends. Extending support to AMD and Intel GPUs would primarily require work in KernelIntrinsics.jl, with minimal adaptations in Luma.jl.
+> **The core contribution of this package lies in the GPU kernel implementations themselves**, designed to be portable once the underlying intrinsics become available on other backends. Extending support to AMD and Intel GPUs would primarily require work in KernelIntrinsics.jl, with minimal adaptations in KernelForge.jl.
 
 > 📄 A paper describing this work is in preparation. If you use this code, please check back for citation details.
 
@@ -21,7 +21,7 @@ This package builds on the foundation provided by [KernelAbstractions.jl](https:
 ## Installation
 ```julia
 using Pkg
-Pkg.add("Luma")
+Pkg.add("KernelForge")
 ```
 
 ## Features
@@ -40,7 +40,7 @@ Pkg.add("Luma")
 
 Perform memory copies with vectorized loads and stores for improved bandwidth utilization:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 src = CuArray{Float64}(rand(Float32, 10^6))
@@ -56,47 +56,47 @@ isapprox(dst, src)  # true
 
 Apply a transformation and reduce the result with a custom operator:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 src = CUDA.rand(Float32, 10^6)
 
 # Full reduction
-total = Luma.mapreduce(identity, +, src; to_cpu=true)
+total = KernelForge.mapreduce(identity, +, src; to_cpu=true)
 
 # With custom map function
-sum_of_squares = Luma.mapreduce(abs2, +, src; to_cpu=true)
+sum_of_squares = KernelForge.mapreduce(abs2, +, src; to_cpu=true)
 ```
 
 #### Multi-dimensional Reductions
 
-Luma supports reductions along specified dimensions for 2D and higher-dimensional arrays:
+KernelForge supports reductions along specified dimensions for 2D and higher-dimensional arrays:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 A = CUDA.rand(Float32, 1000, 500)
 
 # Column sums (reduce along dim=1)
-col_sums = Luma.mapreduce(identity, +, A; dims=1)
+col_sums = KernelForge.mapreduce(identity, +, A; dims=1)
 
 # Row maximums (reduce along dim=2)
-row_maxs = Luma.mapreduce(identity, max, A; dims=2)
+row_maxs = KernelForge.mapreduce(identity, max, A; dims=2)
 
 # Column means with post-reduction transformation
-col_means = Luma.mapreduce(identity, +, A; dims=1, g=x -> x / size(A, 1))
+col_means = KernelForge.mapreduce(identity, +, A; dims=1, g=x -> x / size(A, 1))
 
 # Sum of squares per row
-row_ss = Luma.mapreduce(abs2, +, A; dims=2)
+row_ss = KernelForge.mapreduce(abs2, +, A; dims=2)
 ```
 
 For higher-dimensional arrays, the `dims` argument must specify contiguous dimensions from either the beginning (e.g., `(1,)`, `(1,2)`) or the end (e.g., `(n,)`, `(n-1,n)`).
 
 #### Custom Types: UnitFloat8
 
-Luma supports custom numeric types. Here's an example with `UnitFloat8`:
+KernelForge supports custom numeric types. Here's an example with `UnitFloat8`:
 ```julia
-using Luma: UnitFloat8
+using KernelForge: UnitFloat8
 using CUDA
 
 n = 1000000
@@ -105,7 +105,7 @@ f(x::UnitFloat8) = Float32(x)
 src = CuArray{UnitFloat8}([rand(UnitFloat8) for _ in 1:n])
 dst = CuArray{UnitFloat8}([0])
 
-Luma.mapreduce!(f, +, dst, src)
+KernelForge.mapreduce!(f, +, dst, src)
 
 # dst is in (-1,1) range due to UnitFloat8 overflow, BUT since we reduce
 # Float32 values, the result has the correct sign:
@@ -116,13 +116,13 @@ sign(Float32(CUDA.@allowscalar dst[1])) == sign(mapreduce(f, +, Array(Float32.(s
 
 Compute cumulative operations with support for non-commutative operators:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 src = CUDA.rand(Float32, 10^6)
 dst = similar(src)
 
-Luma.scan!(+, dst, src)
+KernelForge.scan!(+, dst, src)
 
 # Matches Base.accumulate:
 isapprox(Array(dst), accumulate(+, Array(src)))  # true
@@ -130,18 +130,18 @@ isapprox(Array(dst), accumulate(+, Array(src)))  # true
 
 #### Cumulative Sum of Squares
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 x = CUDA.rand(Float32, 10_000)
-result = Luma.scan(x -> x^2, +, x)
+result = KernelForge.scan(x -> x^2, +, x)
 ```
 
 #### Non-Commutative Types: Quaternions
 
-Luma correctly handles non-commutative operations without requiring a neutral element or init value:
+KernelForge correctly handles non-commutative operations without requiring a neutral element or init value:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 using Quaternions
 
@@ -153,7 +153,7 @@ src_cpu = [QuaternionF64(x ./ sqrt(sum(x .^ 2))...) for x in eachcol(randn(4, n)
 src = CuArray{QuaternionF64}(src_cpu)
 dst = similar(src)
 
-Luma.scan!(op, dst, src)
+KernelForge.scan!(op, dst, src)
 
 # Works with non-commutative structures!
 isapprox(Array(dst), accumulate(op, src_cpu))  # true
@@ -163,27 +163,27 @@ isapprox(Array(dst), accumulate(op, src_cpu))  # true
 
 Generalized matrix-vector multiplication with customizable element-wise and reduction operations:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 A = CUDA.rand(Float32, 1000, 500)
 x = CUDA.rand(Float32, 500)
 
 # Standard matrix-vector multiply: y = A * x
-y = Luma.matvec(A, x)
+y = KernelForge.matvec(A, x)
 
 # Row-wise sum: y[i] = sum(A[i, :])
-y = Luma.matvec(A, nothing)
+y = KernelForge.matvec(A, nothing)
 
 # Row-wise maximum: y[i] = max_j(A[i, j])
-y = Luma.matvec(identity, max, A, nothing)
+y = KernelForge.matvec(identity, max, A, nothing)
 
 # Softmax numerator: y[i] = sum_j(exp(A[i,j] - x[j]))
-y = Luma.matvec((a, b) -> exp(a - b), +, A, x)
+y = KernelForge.matvec((a, b) -> exp(a - b), +, A, x)
 
 # In-place version
 dst = CUDA.zeros(Float32, 1000)
-Luma.matvec!(dst, A, x)
+KernelForge.matvec!(dst, A, x)
 ```
 
 For tall matrices (many rows, few columns), each row is processed by a single block. For wide matrices (few rows, many columns), multiple blocks collaborate on each row.
@@ -192,7 +192,7 @@ For tall matrices (many rows, few columns), each row is processed by a single bl
 
 Column-wise reductions and vector-matrix products:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 A = CUDA.rand(Float32, 1000, 500)
@@ -200,49 +200,49 @@ x = CUDA.rand(Float32, 1000)
 dst = CUDA.zeros(Float32, 500)
 
 # Vector-matrix multiply: dst[j] = sum_i(x[i] * A[i,j])
-Luma.vecmat!(dst, x, A)
+KernelForge.vecmat!(dst, x, A)
 
 # Column sums (x = nothing): dst[j] = sum_i(A[i,j])
-Luma.vecmat!(dst, nothing, A)
+KernelForge.vecmat!(dst, nothing, A)
 ```
 
 ### Pre-allocating Temporary Buffers
 
 For repeated operations, pre-allocate temporary buffers to avoid allocation overhead:
 ```julia
-using Luma
+using KernelForge
 using CUDA
 
 x = CUDA.rand(Float32, 10_000)
 dst = similar(x)
 
 # Pre-allocate for scan
-tmp = Luma.get_allocation(Luma.scan!, dst, x)
+tmp = KernelForge.get_allocation(KernelForge.scan!, dst, x)
 
 for i in 1:100
-    Luma.scan!(+, dst, x; tmp)
+    KernelForge.scan!(+, dst, x; tmp)
 end
 ```
 
 ### Synchronization Flags
 
-By default, Luma uses `UInt8` flags which require zeroing before each call. For higher throughput without zeroing overhead, use `UInt64` flags with random target generation (correctness probability > 1 − 2⁻⁶⁴):
+By default, KernelForge uses `UInt8` flags which require zeroing before each call. For higher throughput without zeroing overhead, use `UInt64` flags with random target generation (correctness probability > 1 − 2⁻⁶⁴):
 ```julia
-Luma.scan!(+, dst, src; FlagType=UInt64)
+KernelForge.scan!(+, dst, src; FlagType=UInt64)
 ```
 
 ## Performance
 
-Luma.jl achieves performance comparable to optimized CUDA C++ libraries such as CUB. Benchmarks report two metrics:
+KernelForge.jl achieves performance comparable to optimized CUDA C++ libraries such as CUB. Benchmarks report two metrics:
 
 - **Kernel time**: Execution time of the main kernel, measured using `@profile` from CUDA.jl
 - **Overhead**: Total time minus kernel time, including memory allocations and data transfers
 
 ### Copy Performance
 
-CUDA.jl leverages the proprietary libcuda library for memory copies, which internally vectorizes loads and stores. In contrast, the cross-platform GPUArrayCore.jl relies on KernelAbstractions.jl, which does not currently perform vectorization. Luma's `vcopy!` bridges this gap by using `vload` and `vstore` operations built on unsafe pointer access via LLVMPtrs from KernelIntrinsics.jl.
+CUDA.jl leverages the proprietary libcuda library for memory copies, which internally vectorizes loads and stores. In contrast, the cross-platform GPUArrayCore.jl relies on KernelAbstractions.jl, which does not currently perform vectorization. KernelForge's `vcopy!` bridges this gap by using `vload` and `vstore` operations built on unsafe pointer access via LLVMPtrs from KernelIntrinsics.jl.
 
-The graph below compares memory bandwidth for Float32 and UInt8 data types. With vectorized loads and stores, Luma achieves bandwidth comparable to CUDA.jl for both types. The slight underperformance below the L2 cache threshold stems from our current vectorization factor (×8 for Float32); increasing this to ×16 would close the remaining gap.
+The graph below compares memory bandwidth for Float32 and UInt8 data types. With vectorized loads and stores, KernelForge achieves bandwidth comparable to CUDA.jl for both types. The slight underperformance below the L2 cache threshold stems from our current vectorization factor (×8 for Float32); increasing this to ×16 would close the remaining gap.
 
 <p align="center">
   <img src="perfs/cuda/figures/benchmark/copy_bandwidth.png" width="50%">
@@ -250,7 +250,7 @@ The graph below compares memory bandwidth for Float32 and UInt8 data types. With
 
 ### Map-Reduce Performance
 
-Luma.jl matches CUDA.jl performance on Float32 and significantly outperforms it on smaller types (UInt8, UnitFloat8), even when converting to Float32 during reduction. These gains result from optimized memory access patterns and vectorized loads/stores.
+KernelForge.jl matches CUDA.jl performance on Float32 and significantly outperforms it on smaller types (UInt8, UnitFloat8), even when converting to Float32 during reduction. These gains result from optimized memory access patterns and vectorized loads/stores.
 
 <p align="center">
   <img src="perfs/cuda/figures/benchmark/mapreduce_benchmark_comparison.png" width="50%">
@@ -258,7 +258,7 @@ Luma.jl matches CUDA.jl performance on Float32 and significantly outperforms it 
 
 ### Scan Performance
 
-Luma's scan kernel rivals CUB performance on Float32 and Float64, while additionally supporting non-commutative operations and custom types such as Quaternions. This is achieved through an efficient decoupled lookback algorithm combined with optimized memory access.
+KernelForge's scan kernel rivals CUB performance on Float32 and Float64, while additionally supporting non-commutative operations and custom types such as Quaternions. This is achieved through an efficient decoupled lookback algorithm combined with optimized memory access.
 
 <p align="center">
   <img src="perfs/cuda/figures/benchmark/scan_benchmark_comparison.png" width="50%">
@@ -266,9 +266,9 @@ Luma's scan kernel rivals CUB performance on Float32 and Float64, while addition
 
 ### Matrix-Vector Operations
 
-Luma implements matrix-vector and vector-matrix operations for general types and operators. For benchmarking, we compare against CUDA.jl on Float32, which internally calls cuBLAS's `gemv` routine.
+KernelForge implements matrix-vector and vector-matrix operations for general types and operators. For benchmarking, we compare against CUDA.jl on Float32, which internally calls cuBLAS's `gemv` routine.
 
-Due to column-major memory layout, matrix-vector and vector-matrix multiplications have fundamentally different access patterns. Luma therefore provides separate optimized kernels for each operation.
+Due to column-major memory layout, matrix-vector and vector-matrix multiplications have fundamentally different access patterns. KernelForge therefore provides separate optimized kernels for each operation.
 
 For both benchmarks, we fix the total matrix size (n × p) and vary n from 10 to (n × p) / 10, sweeping from tall-narrow to short-wide matrices. The black line indicates the reduced overhead achieved when the user provides pre-allocated temporary memory.
 

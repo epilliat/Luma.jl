@@ -270,7 +270,7 @@ kernel(args...; workgroup=config.workgroup, blocks=config.blocks)
 ```
 
 # Backend Extensions
-Backend-specific extensions (e.g., LumaCUDAExt) should provide optimized implementations:
+Backend-specific extensions (e.g., KernelForgeCUDAExt) should provide optimized implementations:
 ```julia
 function get_default_config(obj::Kernel{CUDABackend}, args...)
     # Query device capabilities

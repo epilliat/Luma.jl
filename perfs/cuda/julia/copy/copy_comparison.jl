@@ -3,7 +3,7 @@ using Pkg
 
 Pkg.activate("$(@__DIR__())/../../")
 
-using Luma
+using KernelForge
 using KernelAbstractions, CUDA, BenchmarkTools
 using AcceleratedKernels
 using Quaternions
@@ -14,16 +14,16 @@ T = Float32
 src_cpu = [1 for i in (1:n)]
 src = CuArray{T}(src_cpu)
 dst = CuArray{T}([0 for _ in (1:n)])
-#%% LUMA
+#%% KernelForge
 
 
 Nitem = 4 #must be set equal 1 for good performance for large n
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.copy!(dst, src, Nitem=Nitem)
+    KernelForge.copy!(dst, src, Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.copy!(dst, src; Nitem=Nitem)
+prof = CUDA.@profile KernelForge.copy!(dst, src; Nitem=Nitem)
 
 #%% CUDA
 start_time = time()

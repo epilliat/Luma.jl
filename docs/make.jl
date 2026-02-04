@@ -1,5 +1,5 @@
 using Documenter
-using Luma
+using KernelForge
 
 
 # Copy benchmark figures
@@ -12,11 +12,11 @@ for file in readdir(src_dir)
     end
 end
 makedocs(
-    sitename="Luma.jl",
-    modules=[Luma],
+    sitename="KernelForge.jl",
+    modules=[KernelForge],
     format=Documenter.HTML(
         prettyurls=get(ENV, "CI", nothing) == "true",
-        canonical="https://epilliat.github.io/Luma.jl/stable/",
+        canonical="https://epilliat.github.io/KernelForge.jl/stable/",
         assets=["assets/custom.css"],
     ),
     pages=[
@@ -30,6 +30,6 @@ makedocs(
 
 # Deploy to GitHub Pages (optional)
 deploydocs(
-    repo="github.com/epilliat/Luma.jl.git",
+    repo="github.com/epilliat/KernelForge.jl.git",
     devbranch="main",
 )

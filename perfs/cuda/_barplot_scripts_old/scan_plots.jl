@@ -3,14 +3,14 @@ using Pkg
 
 Pkg.activate("$(@__DIR__)/../")
 
-luma_path = abspath("$(@__DIR__)/../../../")
-#Pkg.develop(path=luma_path)
+KernelForge_path = abspath("$(@__DIR__)/../../../")
+#Pkg.develop(path=KernelForge_path)
 
 ma_path = abspath("/home/emmanuel/Packages/KernelIntrinsics.jl/")
 #Pkg.develop(path=ma_path)
 #Pkg.instantiate()
 
-using Luma
+using KernelForge
 using Plots
 using KernelAbstractions, Test, CUDA, BenchmarkTools, DataFrames
 import AcceleratedKernels as AK
@@ -20,7 +20,7 @@ include("helpers/extract_infos.jl")
 include("helpers/illustration_tools.jl")
 
 tmax_timed = 1
-names = ["Luma Def", "Luma Opt", "CUDA.jl", "AK"]
+names = ["Forge Def", "Forge Opt", "CUDA.jl", "AK"]
 algos = ["Scan"]
 algo = "Scan"
 bench = DataFrame()
@@ -34,22 +34,22 @@ for T in [Float32, Float64]
     src = CUDA.ones(T, N)
     dst = CUDA.zeros(T, N)
 
-    name = "Luma Def"
+    name = "Forge Def"
 
     start_time = time()
     while time() - start_time < 0.500
-        CUDA.@sync Luma.scan!(op, dst, src)
+        CUDA.@sync KernelForge.scan!(op, dst, src)
     end
-    prof = [CUDA.@profile Luma.scan!(op, dst, src) for _ in 1:100]
+    prof = [CUDA.@profile KernelForge.scan!(op, dst, src) for _ in 1:100]
     dt = 0.0
     dts = Float64[]
     while dt <= 2 * tmax_timed
-        timed = CUDA.@timed Luma.scan!(op, dst, src)
+        timed = CUDA.@timed KernelForge.scan!(op, dst, src)
         u = timed.time
         dt += u
         push!(dts, u)
     end
-    timed = CUDA.@timed Luma.scan!(op, dst, src)
+    timed = CUDA.@timed KernelForge.scan!(op, dst, src)
     benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
 end
 
@@ -63,24 +63,24 @@ for T in [Float32, Float64]
     src = CUDA.ones(T, N)
     dst = CUDA.zeros(T, N)
 
-    name = "Luma Opt"
+    name = "Forge Opt"
 
-    tmp = Luma.get_allocation(Luma.scan!, dst, src; FlagType=UInt64)
+    tmp = KernelForge.get_allocation(KernelForge.scan!, dst, src; FlagType=UInt64)
     start_time = time()
     while time() - start_time < 0.500
-        CUDA.@sync Luma.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
+        CUDA.@sync KernelForge.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
     end
 
-    prof = [CUDA.@profile Luma.scan!(op, dst, src; tmp=tmp, FlagType=UInt64) for _ in 1:100]
+    prof = [CUDA.@profile KernelForge.scan!(op, dst, src; tmp=tmp, FlagType=UInt64) for _ in 1:100]
     dt = 0.0
     dts = Float64[]
     while dt <= 2 * tmax_timed
-        timed = CUDA.@timed Luma.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
+        timed = CUDA.@timed KernelForge.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
         u = timed.time
         dt += u
         push!(dts, u)
     end
-    timed = CUDA.@timed Luma.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
+    timed = CUDA.@timed KernelForge.scan!(op, dst, src; tmp=tmp, FlagType=UInt64)
     benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
 end
 
@@ -223,7 +223,7 @@ bench_with_cub = vcat(bench, cub_f32, cub_f64, cols=:union)
 p1 = create_kernel_stacked_barplot(bench_with_cub,
     algo="Scan",
     kernel_colors=[:blue, :red, :green, :orange], overhead_alpha=0.7,
-    names=["CUDA", "AK Def", "Luma Def", "Luma Opt", "Cub"],
+    names=["CUDA", "AK Def", "Forge Def", "Forge Opt", "Cub"],
     size_anotation=9)
 savefig(p1, "$(@__DIR__)/../figures/scan_comparison_1e6.png")
 
@@ -237,22 +237,22 @@ for T in [Float32, Float64]
     src = CUDA.ones(T, N)
     dst = CUDA.zeros(T, N)
 
-    name = "Luma Def"
+    name = "Forge Def"
 
     start_time = time()
     while time() - start_time < 0.800
-        CUDA.@sync Luma.scan!(op, dst, src)
+        CUDA.@sync KernelForge.scan!(op, dst, src)
     end
-    prof = [CUDA.@profile Luma.scan!(op, dst, src) for _ in 1:100]
+    prof = [CUDA.@profile KernelForge.scan!(op, dst, src) for _ in 1:100]
     dt = 0.0
     dts = Float64[]
     while dt <= 2 * tmax_timed
-        timed = CUDA.@timed Luma.scan!(op, dst, src)
+        timed = CUDA.@timed KernelForge.scan!(op, dst, src)
         u = timed.time
         dt += u
         push!(dts, u)
     end
-    timed = CUDA.@timed Luma.scan!(op, dst, src)
+    timed = CUDA.@timed KernelForge.scan!(op, dst, src)
     benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
 end
 
@@ -265,24 +265,24 @@ for T in [Float32, Float64]
     src = CUDA.ones(T, N)
     dst = CUDA.zeros(T, N)
 
-    name = "Luma Opt"
+    name = "Forge Opt"
 
-    tmp = Luma.get_allocation(Luma.scan!, dst, src)
+    tmp = KernelForge.get_allocation(KernelForge.scan!, dst, src)
     start_time = time()
     while time() - start_time < 0.500
-        CUDA.@sync Luma.scan!(op, dst, src; tmp=tmp)
+        CUDA.@sync KernelForge.scan!(op, dst, src; tmp=tmp)
     end
 
-    prof = [CUDA.@profile Luma.scan!(op, dst, src; tmp=tmp) for _ in 1:100]
+    prof = [CUDA.@profile KernelForge.scan!(op, dst, src; tmp=tmp) for _ in 1:100]
     dt = 0.0
     dts = Float64[]
     while dt <= 2 * tmax_timed
-        timed = CUDA.@timed Luma.scan!(op, dst, src; tmp=tmp)
+        timed = CUDA.@timed KernelForge.scan!(op, dst, src; tmp=tmp)
         u = timed.time
         dt += u
         push!(dts, u)
     end
-    timed = CUDA.@timed Luma.scan!(op, dst, src; tmp=tmp)
+    timed = CUDA.@timed KernelForge.scan!(op, dst, src; tmp=tmp)
     benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
 end
 
@@ -420,7 +420,7 @@ bench_with_cub = vcat(bench, cub_f32, cub_f64, cols=:union)
 p2 = create_kernel_stacked_barplot(bench_with_cub,
     algo="Scan",
     kernel_colors=[:blue, :red, :green, :orange], overhead_alpha=0.7,
-    names=["CUDA", "AK Def", "Luma Def", "Cub"],
+    names=["CUDA", "AK Def", "Forge Def", "Cub"],
     size_anotation=9,
     time_unit=:ms)
 savefig(p2, "$(@__DIR__)/../figures/scan_comparison_1e8.png")

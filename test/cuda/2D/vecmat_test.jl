@@ -4,7 +4,7 @@
 using Test
 using Random
 using CUDA
-using Luma
+using KernelForge
 
 function make_test_arrays(n::Int, p::Int; seed::Int=42, S=Float32)
     Random.seed!(seed)
@@ -23,7 +23,7 @@ end
     @testset "square matrices" begin
         for (n, p) in [(100, 100), (256, 256), (512, 512), (1000, 1000)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -32,7 +32,7 @@ end
     @testset "tall matrices (n >> p)" begin
         for (n, p) in [(1024, 10), (4096, 32), (8192, 64), (16384, 100), (65536, 16)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -41,7 +41,7 @@ end
     @testset "wide matrices (p >> n)" begin
         for (n, p) in [(3, 10_000), (16, 10_000), (32, 50_000), (64, 100_000), (128, 100_000), (256, 100_000)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -50,7 +50,7 @@ end
     @testset "small n" begin
         for (n, p) in [(4, 1000), (8, 1000), (16, 1000), (32, 1000), (48, 1000), (63, 1000)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -59,7 +59,7 @@ end
     @testset "large n" begin
         for (n, p) in [(2048, 1000), (4096, 500), (8192, 200), (16384, 100), (32768, 50)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -68,23 +68,23 @@ end
     @testset "edge cases" begin
         # Single column
         x, src, dst = make_test_arrays(256, 1)
-        Luma.vecmat!(*, +, dst, x, src)
+        KernelForge.vecmat!(*, +, dst, x, src)
         @test isapprox(Array(dst), Array(vec(x' * src)))
 
         # Single row
         x, src, dst = make_test_arrays(1, 1000)
-        Luma.vecmat!(*, +, dst, x, src)
+        KernelForge.vecmat!(*, +, dst, x, src)
         @test isapprox(Array(dst), Array(vec(x' * src)))
 
         # Minimal
         x, src, dst = make_test_arrays(1, 1)
-        Luma.vecmat!(*, +, dst, x, src)
+        KernelForge.vecmat!(*, +, dst, x, src)
         @test isapprox(Array(dst), Array(vec(x' * src)))
 
         # Power of 2 boundaries
         for n in [31, 32, 33, 63, 64, 65, 127, 128, 129, 255, 256, 257]
             x, src, dst = make_test_arrays(n, 100)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             @test isapprox(Array(dst), Array(vec(x' * src)))
         end
     end
@@ -92,7 +92,7 @@ end
     @testset "non-power-of-2" begin
         for (n, p) in [(100, 100), (300, 500), (777, 333), (1234, 5678)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(*, +, dst, x, src)
+            KernelForge.vecmat!(*, +, dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -100,18 +100,18 @@ end
 
     @testset "stress test" begin
         x, src, dst = make_test_arrays(1024, 100_000)
-        Luma.vecmat!(*, +, dst, x, src)
+        KernelForge.vecmat!(*, +, dst, x, src)
         @test isapprox(Array(dst), Array(vec(x' * src)))
 
         x, src, dst = make_test_arrays(50_000, 1000)
-        Luma.vecmat!(*, +, dst, x, src)
+        KernelForge.vecmat!(*, +, dst, x, src)
         @test isapprox(Array(dst), Array(vec(x' * src)))
     end
 
     @testset "simplified API" begin
         for (n, p) in [(256, 256), (1024, 100), (64, 10_000)]
             x, src, dst = make_test_arrays(n, p)
-            Luma.vecmat!(dst, x, src)
+            KernelForge.vecmat!(dst, x, src)
             expected = vec(x' * src)
             @test isapprox(Array(dst), Array(expected))
         end
@@ -136,7 +136,7 @@ end
         src = CuArray{Float32}(rand(Float32, n, p))
         dst = CuArray{Vec3v}(undef, p)
 
-        Luma.vecmat!(f_custom, op_custom, dst, x, src)
+        KernelForge.vecmat!(f_custom, op_custom, dst, x, src)
 
         # Compute expected on CPU
         x_cpu = Array(x)

@@ -30,7 +30,7 @@ function create_kernel_stacked_barplot(df;
             N_val >= 1e3 ? "N=$(round(Int, N_val/1e3))e3" : "N=$N_val"
 
     names = isnothing(names) ? sort(unique(df_filtered.name)) : names
-    datatypes = [Float64, Float32, UInt8, Luma.UnitFloat8, QuaternionF32]
+    datatypes = [Float64, Float32, UInt8, KernelForge.UnitFloat8, QuaternionF32]
 
     # Time conversion factor and label
     time_factor = time_unit == :ms ? 0.001 : 1.0  # Convert μs to ms if needed
@@ -161,11 +161,11 @@ function create_kernel_stacked_barplot(df;
     for (group_idx, name) in enumerate(names)
         for dtype in intersect(datatypes, df.datatype)
             push!(bar_positions, position)
-            # For Cub, show U8 instead of UF8 (since Cub doesn't support Luma.UnitFloat8)
+            # For Cub, show U8 instead of UF8 (since Cub doesn't support KernelForge.UnitFloat8)
             if name == "Cub"
                 push!(bar_labels, dtype == Float32 ? "F32" : (dtype == Float64 ? "F64" : "U8"))
             else
-                push!(bar_labels, dtype == Float32 ? "F32" : (dtype == Float64 ? "F64" : dtype == Luma.UnitFloat8 ? "UF8" : "U8"))
+                push!(bar_labels, dtype == Float32 ? "F32" : (dtype == Float64 ? "F64" : dtype == KernelForge.UnitFloat8 ? "UF8" : "U8"))
             end
 
             subset = filter(row -> row.name == name && row.datatype == dtype, df_filtered)

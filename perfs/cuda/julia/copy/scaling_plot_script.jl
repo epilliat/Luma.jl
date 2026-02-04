@@ -2,7 +2,7 @@
 Copy Scaling Benchmarking Script
 =================================
 Benchmarks copy performance as a function of array size.
-Compares Luma v1/v4/v8 against CUDA.copyto!
+Compares KernelForge v1/v4/v8 against CUDA.copyto!
 
 Methodology:
 - 500ms warm-up phase
@@ -14,7 +14,7 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__)/../../")
 
-using Luma
+using KernelForge
 using CUDA
 using KernelAbstractions
 using Statistics
@@ -25,12 +25,12 @@ using Printf
 # Colorblind-safe palette
 const METHOD_COLORS = Dict(
     "CUDA" => colorant"#CC79A7",      # pink/mauve
-    "Luma v1" => colorant"#0072B2",   # blue
-    "Luma v4" => colorant"#E69F00",   # orange
-    "Luma v8" => colorant"#009E73"    # bluish green
+    "Forge v1" => colorant"#0072B2",   # blue
+    "Forge v4" => colorant"#E69F00",   # orange
+    "Forge v8" => colorant"#009E73"    # bluish green
 )
 
-const METHOD_ORDER = ["CUDA", "Luma v1", "Luma v4", "Luma v8"]
+const METHOD_ORDER = ["CUDA", "Forge v1", "Forge v4", "Forge v8"]
 
 # Get L2 cache size in bytes from CUDA device
 function get_l2_cache_size()
@@ -86,16 +86,16 @@ function run_scaling_benchmarks(sizes::Vector{Int}; trials::Int=10)
             dst = CuArray{T}(undef, n)
 
             # Warm-up
-            warmup(() -> Luma.vcopy!(dst, src; Nitem=1))
-            warmup(() -> Luma.vcopy!(dst, src; Nitem=4))
-            warmup(() -> Luma.vcopy!(dst, src; Nitem=8))
+            warmup(() -> KernelForge.vcopy!(dst, src; Nitem=1))
+            warmup(() -> KernelForge.vcopy!(dst, src; Nitem=4))
+            warmup(() -> KernelForge.vcopy!(dst, src; Nitem=8))
             warmup(() -> copyto!(dst, src))
 
             # Benchmark
             for (method, f) in [
-                ("Luma v1", () -> Luma.vcopy!(dst, src; Nitem=1)),
-                ("Luma v4", () -> Luma.vcopy!(dst, src; Nitem=4)),
-                ("Luma v8", () -> Luma.vcopy!(dst, src; Nitem=8)),
+                ("Forge v1", () -> KernelForge.vcopy!(dst, src; Nitem=1)),
+                ("Forge v4", () -> KernelForge.vcopy!(dst, src; Nitem=4)),
+                ("Forge v8", () -> KernelForge.vcopy!(dst, src; Nitem=8)),
                 ("CUDA", () -> copyto!(dst, src))
             ]
                 kernel_times = Float64[]
@@ -168,7 +168,7 @@ function plot_scaling(
             stds = sorted_data.std_kernel_μs
 
             color = method_colors[method]
-            linewidth = method == "Luma v8" ? 3 : 2
+            linewidth = method == "Forge v8" ? 3 : 2
 
             # Plot line
             lines!(ax, ns, means, color=color, linewidth=linewidth, label=method)
@@ -252,7 +252,7 @@ function plot_bandwidth(
             bandwidth_gb_s = bytes ./ times_s ./ 1e9
 
             color = method_colors[method]
-            linewidth = method == "Luma v8" ? 3 : 2
+            linewidth = method == "Forge v8" ? 3 : 2
 
             # Plot line
             lines!(ax, ns, bandwidth_gb_s, color=color, linewidth=linewidth, label=method)
@@ -312,3 +312,15 @@ save("perfs/cuda/figures/benchmark/copy_bandwidth.png", fig_bandwidth)
 @info "Scaling benchmarks complete. Access results via `df_scaling`"
 
 
+#%%
+#%% from csv
+using CSV
+df_scaling = CSV.read("$(@__DIR__())/scaling.csv", DataFrame)
+
+fig_scaling = plot_scaling(df_scaling)
+
+# Create bandwidth plot
+fig_bandwidth = plot_bandwidth(df_scaling)
+save("perfs/cuda/figures/benchmark/copy_bandwidth.png", fig_bandwidth)
+
+@info "Benchmarks complete. Access results via `df_bar`, `df_scaling` and figures via `figures`"

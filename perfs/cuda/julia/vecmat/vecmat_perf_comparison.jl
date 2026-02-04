@@ -1,7 +1,7 @@
 #=
 VecMat Performance Benchmarking Script
 ======================================
-Compares Luma.vecmat! against cuBLAS (via x' * A) for vector-matrix multiplication.
+Compares KernelForge.vecmat! against cuBLAS (via x' * A) for vector-matrix multiplication.
 
 Methodology:
 - 500ms warm-up phase to ensure JIT compilation and GPU initialization
@@ -13,7 +13,7 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__())/../../")
 
-using Luma
+using KernelForge
 using CUDA
 
 
@@ -43,7 +43,7 @@ function run_vecmat_benchmarks(n::Int, p::Int)
     println("n=$n, p=$p  (n×p = $(n*p))")
     println("="^60)
 
-    bench("Luma.vecmat!", () -> Luma.vecmat!(*, +, dst, x, A))
+    bench("KernelForge.vecmat!", () -> KernelForge.vecmat!(*, +, dst, x, A))
     bench("cuBLAS (x' * A)", () -> x' * A)
 end
 

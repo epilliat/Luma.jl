@@ -27,11 +27,11 @@ result = scan(+, x)
 result = scan(x -> x^2, +, x)
 
 # With pre-allocated temporary for repeated calls
-tmp = Luma.get_allocation(scan!, similar(x), x)
+tmp = KernelForge.get_allocation(scan!, similar(x), x)
 result = scan(+, x; tmp)
 ```
 
-See also: [`Luma.scan!`](@ref) for the in-place version.
+See also: [`KernelForge.scan!`](@ref) for the in-place version.
 """
 function scan end
 
@@ -65,13 +65,13 @@ dst = similar(x)
 scan!(+, dst, x)
 
 # With pre-allocated temporary for repeated calls
-tmp = Luma.get_allocation(scan!, dst, x)
+tmp = KernelForge.get_allocation(scan!, dst, x)
 for i in 1:100
     scan!(+, dst, x; tmp)
 end
 ```
 
-See also: [`Luma.scan`](@ref) for the allocating version.
+See also: [`KernelForge.scan`](@ref) for the allocating version.
 """
 function scan! end
 
@@ -124,7 +124,7 @@ Allocate temporary buffer for `scan!`. Useful for repeated scans.
 ```julia
 x = CUDA.rand(Float32, 10_000)
 dst = similar(x)
-tmp = Luma.get_allocation(scan!, dst, x)
+tmp = KernelForge.get_allocation(scan!, dst, x)
 
 for i in 1:100
     scan!(+, dst, x; tmp)

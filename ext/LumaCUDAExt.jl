@@ -1,10 +1,10 @@
-module LumaCUDAExt
+module KernelForgeCUDAExt
 
-using Luma
+using KernelForge
 import KernelAbstractions as KA
 using CUDA
 
-import Luma: get_default_config
+import KernelForge: get_default_config
 
 
 function get_default_config(obj::KA.Kernel{CUDABackend}, args...)

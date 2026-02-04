@@ -47,7 +47,7 @@ depth_sums = mapreduce(identity, +, A; dims=3)
 slice_sums = mapreduce(identity, +, A; dims=(2,3))
 ```
 
-See also: [`Luma.mapreduce!`](@ref), [`mapreduce1d`](@ref), [`mapreduce2d`](@ref)
+See also: [`KernelForge.mapreduce!`](@ref), [`mapreduce1d`](@ref), [`mapreduce2d`](@ref)
 """
 function mapreduce(
     f::F, op::O,
@@ -128,7 +128,7 @@ mapreduce!(identity, +, col_sums, A; dims=1)
 mapreduce!(identity, +, row_sums, A; dims=2)
 ```
 
-See also: [`Luma.mapreduce`](@ref)
+See also: [`KernelForge.mapreduce`](@ref)
 """
 function mapreduce!(
     f::F, op::O,

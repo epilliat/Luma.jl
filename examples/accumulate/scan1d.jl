@@ -1,4 +1,4 @@
-using Luma
+using KernelForge
 using CUDA
 
 src = CuArray{Float64}(rand(Float32, 10^6))
@@ -7,7 +7,7 @@ dst = similar(src)
 
 op(x, y) = x + y
 op(x...) = op(x[1], op(x[2:end]...))
-Luma.scan!(op, dst, src)
+KernelForge.scan!(op, dst, src)
 # test if it corresponds to Base.accumulate:
 isapprox(Array(dst), accumulate(+, Array(src)))
 
@@ -23,5 +23,5 @@ src = CuArray{T}(src_cpu)
 dst = CuArray{T}([0 for _ in (1:n)])
 
 
-Luma.scan!(op, dst, src)
+KernelForge.scan!(op, dst, src)
 isapprox(Array(dst), accumulate(op, src_cpu)) #works with non commutative structures, without passing neutral or even init!

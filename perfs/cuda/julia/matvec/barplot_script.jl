@@ -1,7 +1,7 @@
 #=
 MatVec Performance Benchmarking Script
 ======================================
-Compares Luma.matvec! against cuBLAS (via A * x) for matrix-vector multiplication.
+Compares KernelForge.matvec! against cuBLAS (via A * x) for matrix-vector multiplication.
 
 Methodology:
 - 500ms warm-up phase to ensure JIT compilation and GPU initialization
@@ -14,7 +14,7 @@ using Revise
 using Pkg
 Pkg.activate("perfs/cuda")
 
-using Luma
+using KernelForge
 using CUDA
 using KernelAbstractions
 using BenchmarkTools
@@ -82,9 +82,9 @@ function run_matvec_benchmarks(n::Int, p::Int; tmp=nothing, FlagType=UInt8)
     println("n=$n, p=$p  (n×p = $(n*p))")
     println("="^60)
     cublas_stats = bench("cuBLAS (A * x)", () -> A * x)
-    luma_stats = bench("Luma.matvec!", () -> Luma.matvec(*, +, A, x; FlagType=FlagType, tmp=tmp))
+    KernelForge_stats = bench("KernelForge.matvec!", () -> KernelForge.matvec(*, +, A, x; FlagType=FlagType, tmp=tmp))
 
-    return (luma=luma_stats, cublas=cublas_stats)
+    return (KernelForge=KernelForge_stats, cublas=cublas_stats)
 end
 
 """
@@ -100,7 +100,7 @@ DataFrame with columns:
 - `total_elements`: n × p
 - `n`: number of rows
 - `p`: vector length
-- `method`: "Luma" or "cuBLAS"
+- `method`: "Forge" or "cuBLAS"
 - `mean_kernel_μs`: mean kernel time in microseconds
 - `std_kernel_μs`: standard deviation of kernel time
 - `mean_total_μs`: mean total time in microseconds
@@ -118,16 +118,16 @@ function run_all_benchmarks(sizes::Vector{Int}; tmp=nothing, FlagType=UInt8)
             n = total ÷ p
             stats = run_matvec_benchmarks(n, p; tmp=tmp, FlagType=FlagType)
 
-            # Add Luma result
+            # Add KernelForge result
             push!(rows, (
                 total_elements=total,
                 n=n,
                 p=p,
-                method="Luma",
-                mean_kernel_μs=stats.luma.mean_kernel_μs,
-                std_kernel_μs=stats.luma.std_kernel_μs,
-                mean_total_μs=stats.luma.mean_total_μs,
-                std_total_μs=stats.luma.std_total_μs
+                method="Forge",
+                mean_kernel_μs=stats.KernelForge.mean_kernel_μs,
+                std_kernel_μs=stats.KernelForge.std_kernel_μs,
+                mean_total_μs=stats.KernelForge.mean_total_μs,
+                std_total_μs=stats.KernelForge.std_total_μs
             ))
 
             # Add cuBLAS result
@@ -182,10 +182,10 @@ end
 """
     plot_kernel_comparison(df::DataFrame, total_elements::Int; df2=nothing, kwargs...) -> Figure
 
-Create a grouped barplot comparing Luma vs cuBLAS kernel times for a given n×p.
+Create a grouped barplot comparing KernelForge vs cuBLAS kernel times for a given n×p.
 Each bar is stacked: kernel time (solid color) + overhead (same color with alpha).
 
-If `df2` is provided, an additional black rectangle is shown above the Luma kernel time
+If `df2` is provided, an additional black rectangle is shown above the KernelForge kernel time
 representing the overhead from the alternative configuration (tmp=tmp, FlagType=UInt64).
 
 # Arguments
@@ -196,7 +196,7 @@ representing the overhead from the alternative configuration (tmp=tmp, FlagType=
 - `df2`: Optional DataFrame from `run_all_benchmarks` with alternative config (tmp=tmp, FlagType=UInt64)
 - `title`: Custom title (default: auto-generated)
 - `figsize`: Figure size tuple (default: (800, 500))
-- `colors`: Tuple of colors for (Luma, cuBLAS) (default: (:steelblue, :coral))
+- `colors`: Tuple of colors for (KernelForge, cuBLAS) (default: (:steelblue, :coral))
 - `overhead_alpha`: Alpha value for the overhead portion (default: 0.3)
 - `label_offset_frac`: Fraction of max height for label offset (default: 0.02)
 
@@ -224,43 +224,43 @@ function plot_kernel_comparison(
     p_values = sort(unique(subset.p))
 
     # Prepare data for plotting
-    luma_kernel = Float64[]
-    luma_overhead = Float64[]
-    luma_err = Float64[]
+    KernelForge_kernel = Float64[]
+    KernelForge_overhead = Float64[]
+    KernelForge_err = Float64[]
     cublas_kernel = Float64[]
     cublas_overhead = Float64[]
     cublas_err = Float64[]
 
     for p in p_values
-        luma_row = filter(r -> r.p == p && r.method == "Luma", subset)
+        KernelForge_row = filter(r -> r.p == p && r.method == "Forge", subset)
         cublas_row = filter(r -> r.p == p && r.method == "cuBLAS", subset)
 
-        luma_k = luma_row.mean_kernel_μs[1]
-        luma_t = luma_row.mean_total_μs[1]
+        KernelForge_k = KernelForge_row.mean_kernel_μs[1]
+        KernelForge_t = KernelForge_row.mean_total_μs[1]
         cublas_k = cublas_row.mean_kernel_μs[1]
         cublas_t = cublas_row.mean_total_μs[1]
 
-        push!(luma_kernel, luma_k)
-        push!(luma_overhead, max(0, luma_t - luma_k))  # Ensure non-negative
-        push!(luma_err, luma_row.std_kernel_μs[1])
+        push!(KernelForge_kernel, KernelForge_k)
+        push!(KernelForge_overhead, max(0, KernelForge_t - KernelForge_k))  # Ensure non-negative
+        push!(KernelForge_err, KernelForge_row.std_kernel_μs[1])
 
         push!(cublas_kernel, cublas_k)
         push!(cublas_overhead, max(0, cublas_t - cublas_k))
         push!(cublas_err, cublas_row.std_kernel_μs[1])
     end
 
-    # Prepare df2 data if provided (alternative Luma overhead)
-    luma_alt_overhead = Float64[]
+    # Prepare df2 data if provided (alternative KernelForge overhead)
+    KernelForge_alt_overhead = Float64[]
     if df2 !== nothing
         subset2 = filter(row -> row.total_elements == total_elements, df2)
         for p in p_values
-            luma_row2 = filter(r -> r.p == p && r.method == "Luma", subset2)
-            if !isempty(luma_row2)
-                luma_t2 = luma_row2.mean_total_μs[1]
-                luma_k2 = luma_row2.mean_kernel_μs[1]
-                push!(luma_alt_overhead, max(0, luma_t2 - luma_k2))
+            KernelForge_row2 = filter(r -> r.p == p && r.method == "Forge", subset2)
+            if !isempty(KernelForge_row2)
+                KernelForge_t2 = KernelForge_row2.mean_total_μs[1]
+                KernelForge_k2 = KernelForge_row2.mean_kernel_μs[1]
+                push!(KernelForge_alt_overhead, max(0, KernelForge_t2 - KernelForge_k2))
             else
-                push!(luma_alt_overhead, 0.0)
+                push!(KernelForge_alt_overhead, 0.0)
             end
         end
     end
@@ -268,11 +268,11 @@ function plot_kernel_comparison(
     # Calculate max height for consistent label spacing
     max_height = 0.0
     for i in 1:length(p_values)
-        luma_total = luma_kernel[i] + luma_overhead[i] + luma_err[i]
-        if df2 !== nothing && i <= length(luma_alt_overhead)
-            luma_total = max(luma_total, luma_kernel[i] + luma_alt_overhead[i] + luma_err[i])
+        KernelForge_total = KernelForge_kernel[i] + KernelForge_overhead[i] + KernelForge_err[i]
+        if df2 !== nothing && i <= length(KernelForge_alt_overhead)
+            KernelForge_total = max(KernelForge_total, KernelForge_kernel[i] + KernelForge_alt_overhead[i] + KernelForge_err[i])
         end
-        max_height = max(max_height, luma_total)
+        max_height = max(max_height, KernelForge_total)
         max_height = max(max_height, cublas_kernel[i] + cublas_overhead[i] + cublas_err[i])
     end
     fixed_offset = max_height * label_offset_frac
@@ -297,16 +297,16 @@ function plot_kernel_comparison(
     offset = width / 2
 
     # Convert colors to RGBA for alpha support
-    luma_color = Makie.to_color(colors[1])
+    KernelForge_color = Makie.to_color(colors[1])
     cublas_color = Makie.to_color(colors[2])
-    luma_overhead_color = (luma_color, overhead_alpha)
+    KernelForge_overhead_color = (KernelForge_color, overhead_alpha)
     cublas_overhead_color = (cublas_color, overhead_alpha)
 
     # Plot stacked bars: kernel time (bottom) + overhead (top)
-    # Luma bars
-    barplot!(ax, x .- offset, luma_kernel, width=width, color=colors[1], label="Luma (kernel)")
-    barplot!(ax, x .- offset, luma_overhead, width=width, color=luma_overhead_color,
-        offset=luma_kernel, label="Luma (overhead)")
+    # KernelForge bars
+    barplot!(ax, x .- offset, KernelForge_kernel, width=width, color=colors[1], label="Forge (kernel)")
+    barplot!(ax, x .- offset, KernelForge_overhead, width=width, color=KernelForge_overhead_color,
+        offset=KernelForge_kernel, label="Forge (overhead)")
 
     # cuBLAS bars
     barplot!(ax, x .+ offset, cublas_kernel, width=width, color=colors[2], label="cuBLAS (kernel)")
@@ -314,28 +314,28 @@ function plot_kernel_comparison(
         offset=cublas_kernel, label="cuBLAS (overhead)")
 
     # Add alternative overhead (horizontal lines) if df2 is provided
-    if df2 !== nothing && !isempty(luma_alt_overhead)
+    if df2 !== nothing && !isempty(KernelForge_alt_overhead)
         # Draw horizontal lines at kernel + alt_overhead level
         for (i, xi) in enumerate(x)
-            alt_top = luma_kernel[i] + luma_alt_overhead[i]
+            alt_top = KernelForge_kernel[i] + KernelForge_alt_overhead[i]
             lines!(ax, [xi - offset - width / 2, xi - offset + width / 2], [alt_top, alt_top],
-                color=:black, linewidth=2.5, label=(i == 1 ? "Luma (overhead, Opt)" : nothing))
+                color=:black, linewidth=2.5, label=(i == 1 ? "Forge (overhead, Opt)" : nothing))
         end
     end
 
     # Error bars on kernel time (at the top of the kernel portion)
-    errorbars!(ax, x .- offset, luma_kernel, luma_err, color=:black, whiskerwidth=6)
+    errorbars!(ax, x .- offset, KernelForge_kernel, KernelForge_err, color=:black, whiskerwidth=6)
     errorbars!(ax, x .+ offset, cublas_kernel, cublas_err, color=:black, whiskerwidth=6)
 
     # Value labels above bars
     for (i, xi) in enumerate(x)
-        # Luma label - position above the taller of the two overheads
-        luma_top = luma_kernel[i] + luma_overhead[i]
-        if df2 !== nothing && i <= length(luma_alt_overhead)
-            luma_top = max(luma_top, luma_kernel[i] + luma_alt_overhead[i])
+        # KernelForge label - position above the taller of the two overheads
+        KernelForge_top = KernelForge_kernel[i] + KernelForge_overhead[i]
+        if df2 !== nothing && i <= length(KernelForge_alt_overhead)
+            KernelForge_top = max(KernelForge_top, KernelForge_kernel[i] + KernelForge_alt_overhead[i])
         end
-        text!(ax, xi - offset, luma_top + fixed_offset;
-            text=format_3digits(luma_kernel[i]), align=(:center, :bottom), fontsize=12, font=:bold)
+        text!(ax, xi - offset, KernelForge_top + fixed_offset;
+            text=format_3digits(KernelForge_kernel[i]), align=(:center, :bottom), fontsize=12, font=:bold)
 
         # cuBLAS label
         cublas_top = cublas_kernel[i] + cublas_overhead[i]
@@ -354,7 +354,7 @@ end
 
 Create multiple grouped barplots side by side, one for each total_elements value.
 
-If `df2` is provided, an additional black rectangle is shown above the Luma kernel time
+If `df2` is provided, an additional black rectangle is shown above the KernelForge kernel time
 representing the overhead from the alternative configuration (tmp=tmp, FlagType=UInt64).
 
 # Arguments
@@ -364,7 +364,7 @@ representing the overhead from the alternative configuration (tmp=tmp, FlagType=
 # Keyword Arguments
 - `df2`: Optional DataFrame from `run_all_benchmarks` with alternative config (tmp=tmp, FlagType=UInt64)
 - `figsize`: Figure size tuple (default: auto-scaled by number of plots)
-- `colors`: Tuple of colors for (Luma, cuBLAS) (default: (:steelblue, :coral))
+- `colors`: Tuple of colors for (KernelForge, cuBLAS) (default: (:steelblue, :coral))
 - `overhead_alpha`: Alpha value for the overhead portion (default: 0.3)
 - `label_offset_frac`: Fraction of max height for label offset (default: 0.02)
 
@@ -383,9 +383,9 @@ function plot_kernel_comparison_multi(
     fig = Figure(size=figsize)
 
     # Convert colors to RGBA for alpha support
-    luma_color = Makie.to_color(colors[1])
+    KernelForge_color = Makie.to_color(colors[1])
     cublas_color = Makie.to_color(colors[2])
-    luma_overhead_color = (luma_color, overhead_alpha)
+    KernelForge_overhead_color = (KernelForge_color, overhead_alpha)
     cublas_overhead_color = (cublas_color, overhead_alpha)
 
     local barplots  # For legend reference
@@ -401,43 +401,43 @@ function plot_kernel_comparison_multi(
         p_values = sort(unique(subset.p))
 
         # Prepare data
-        luma_kernel = Float64[]
-        luma_overhead = Float64[]
-        luma_err = Float64[]
+        KernelForge_kernel = Float64[]
+        KernelForge_overhead = Float64[]
+        KernelForge_err = Float64[]
         cublas_kernel = Float64[]
         cublas_overhead = Float64[]
         cublas_err = Float64[]
 
         for p in p_values
-            luma_row = filter(r -> r.p == p && r.method == "Luma", subset)
+            KernelForge_row = filter(r -> r.p == p && r.method == "Forge", subset)
             cublas_row = filter(r -> r.p == p && r.method == "cuBLAS", subset)
 
-            luma_k = luma_row.mean_kernel_μs[1]
-            luma_t = luma_row.mean_total_μs[1]
+            KernelForge_k = KernelForge_row.mean_kernel_μs[1]
+            KernelForge_t = KernelForge_row.mean_total_μs[1]
             cublas_k = cublas_row.mean_kernel_μs[1]
             cublas_t = cublas_row.mean_total_μs[1]
 
-            push!(luma_kernel, luma_k)
-            push!(luma_overhead, max(0, luma_t - luma_k))
-            push!(luma_err, luma_row.std_kernel_μs[1])
+            push!(KernelForge_kernel, KernelForge_k)
+            push!(KernelForge_overhead, max(0, KernelForge_t - KernelForge_k))
+            push!(KernelForge_err, KernelForge_row.std_kernel_μs[1])
 
             push!(cublas_kernel, cublas_k)
             push!(cublas_overhead, max(0, cublas_t - cublas_k))
             push!(cublas_err, cublas_row.std_kernel_μs[1])
         end
 
-        # Prepare df2 data if provided (alternative Luma overhead)
-        luma_alt_overhead = Float64[]
+        # Prepare df2 data if provided (alternative KernelForge overhead)
+        KernelForge_alt_overhead = Float64[]
         if df2 !== nothing
             subset2 = filter(row -> row.total_elements == total_elements, df2)
             for p in p_values
-                luma_row2 = filter(r -> r.p == p && r.method == "Luma", subset2)
-                if !isempty(luma_row2)
-                    luma_t2 = luma_row2.mean_total_μs[1]
-                    luma_k2 = luma_row2.mean_kernel_μs[1]
-                    push!(luma_alt_overhead, max(0, luma_t2 - luma_k2))
+                KernelForge_row2 = filter(r -> r.p == p && r.method == "Forge", subset2)
+                if !isempty(KernelForge_row2)
+                    KernelForge_t2 = KernelForge_row2.mean_total_μs[1]
+                    KernelForge_k2 = KernelForge_row2.mean_kernel_μs[1]
+                    push!(KernelForge_alt_overhead, max(0, KernelForge_t2 - KernelForge_k2))
                 else
-                    push!(luma_alt_overhead, 0.0)
+                    push!(KernelForge_alt_overhead, 0.0)
                 end
             end
         end
@@ -445,11 +445,11 @@ function plot_kernel_comparison_multi(
         # Calculate max height for consistent label spacing
         max_height = 0.0
         for i in 1:length(p_values)
-            luma_total = luma_kernel[i] + luma_overhead[i] + luma_err[i]
-            if df2 !== nothing && i <= length(luma_alt_overhead)
-                luma_total = max(luma_total, luma_kernel[i] + luma_alt_overhead[i] + luma_err[i])
+            KernelForge_total = KernelForge_kernel[i] + KernelForge_overhead[i] + KernelForge_err[i]
+            if df2 !== nothing && i <= length(KernelForge_alt_overhead)
+                KernelForge_total = max(KernelForge_total, KernelForge_kernel[i] + KernelForge_alt_overhead[i] + KernelForge_err[i])
             end
-            max_height = max(max_height, luma_total)
+            max_height = max(max_height, KernelForge_total)
             max_height = max(max_height, cublas_kernel[i] + cublas_overhead[i] + cublas_err[i])
         end
         fixed_offset = max_height * label_offset_frac
@@ -473,34 +473,34 @@ function plot_kernel_comparison_multi(
         offset = width / 2
 
         # Plot stacked bars
-        b1 = barplot!(ax, x .- offset, luma_kernel, width=width, color=colors[1])
-        barplot!(ax, x .- offset, luma_overhead, width=width, color=luma_overhead_color, offset=luma_kernel)
+        b1 = barplot!(ax, x .- offset, KernelForge_kernel, width=width, color=colors[1])
+        barplot!(ax, x .- offset, KernelForge_overhead, width=width, color=KernelForge_overhead_color, offset=KernelForge_kernel)
 
         b2 = barplot!(ax, x .+ offset, cublas_kernel, width=width, color=colors[2])
         barplot!(ax, x .+ offset, cublas_overhead, width=width, color=cublas_overhead_color, offset=cublas_kernel)
 
         # Add alternative overhead (horizontal lines) if df2 is provided
-        if df2 !== nothing && !isempty(luma_alt_overhead)
+        if df2 !== nothing && !isempty(KernelForge_alt_overhead)
             for (i, xi) in enumerate(x)
-                alt_top = luma_kernel[i] + luma_alt_overhead[i]
+                alt_top = KernelForge_kernel[i] + KernelForge_alt_overhead[i]
                 lines!(ax, [xi - offset - width / 2, xi - offset + width / 2], [alt_top, alt_top],
                     color=:black, linewidth=2.5)
             end
         end
 
         # Error bars on kernel time
-        errorbars!(ax, x .- offset, luma_kernel, luma_err, color=:black, whiskerwidth=6)
+        errorbars!(ax, x .- offset, KernelForge_kernel, KernelForge_err, color=:black, whiskerwidth=6)
         errorbars!(ax, x .+ offset, cublas_kernel, cublas_err, color=:black, whiskerwidth=6)
 
         # Value labels above bars
         for (i, xi) in enumerate(x)
-            # Luma label - position above the taller of the two overheads
-            luma_top = luma_kernel[i] + luma_overhead[i]
-            if df2 !== nothing && i <= length(luma_alt_overhead)
-                luma_top = max(luma_top, luma_kernel[i] + luma_alt_overhead[i])
+            # KernelForge label - position above the taller of the two overheads
+            KernelForge_top = KernelForge_kernel[i] + KernelForge_overhead[i]
+            if df2 !== nothing && i <= length(KernelForge_alt_overhead)
+                KernelForge_top = max(KernelForge_top, KernelForge_kernel[i] + KernelForge_alt_overhead[i])
             end
-            text!(ax, xi - offset, luma_top + fixed_offset;
-                text=format_3digits(luma_kernel[i]), align=(:center, :bottom), fontsize=12, font=:bold)
+            text!(ax, xi - offset, KernelForge_top + fixed_offset;
+                text=format_3digits(KernelForge_kernel[i]), align=(:center, :bottom), fontsize=12, font=:bold)
 
             # cuBLAS label
             cublas_top = cublas_kernel[i] + cublas_overhead[i]
@@ -518,7 +518,7 @@ function plot_kernel_comparison_multi(
             [PolyElement(color=colors[1]), PolyElement(color=(Makie.to_color(colors[1]), overhead_alpha)),
                 LineElement(color=:black, linewidth=2.5),
                 PolyElement(color=colors[2]), PolyElement(color=(Makie.to_color(colors[2]), overhead_alpha))],
-            ["Luma (kernel)", "Luma (overhead)", "Luma (overhead, Opt)",
+            ["Forge (kernel)", "Forge (overhead)", "Forge (overhead, Opt)",
                 "cuBLAS (kernel)", "cuBLAS (overhead)"],
             orientation=:horizontal,
             tellheight=true,
@@ -530,7 +530,7 @@ function plot_kernel_comparison_multi(
             fig[2, :],
             [PolyElement(color=colors[1]), PolyElement(color=(Makie.to_color(colors[1]), overhead_alpha)),
                 PolyElement(color=colors[2]), PolyElement(color=(Makie.to_color(colors[2]), overhead_alpha))],
-            ["Luma (kernel)", "Luma (overhead)", "cuBLAS (kernel)", "cuBLAS (overhead)"],
+            ["Forge (kernel)", "Forge (overhead)", "cuBLAS (kernel)", "cuBLAS (overhead)"],
             orientation=:horizontal,
             tellheight=true,
             tellwidth=false,
@@ -589,7 +589,7 @@ sizes = [1_000_000, 10_000_000]
 df = run_all_benchmarks(sizes)
 
 # Run alternative benchmarks with tmp and FlagType=UInt64
-df2 = run_all_benchmarks(sizes; tmp=tmp, FlagType=UInt64)
+#df2 = run_all_benchmarks(sizes; tmp=tmp)
 
 # Display results
 println("\n" * "="^60)
@@ -601,15 +601,15 @@ println()
 println("\n" * "="^60)
 println("BENCHMARK RESULTS (tmp=tmp, FlagType=UInt64)")
 println("="^60)
-show(df2, allrows=true, allcols=true)
+#show(df2, allrows=true, allcols=true)
 println()
 
 # Create and save plots with comparison
-figures = plot_all_comparisons(df; df2=df2)
+figures = plot_all_comparisons(df)
 save_plots(figures)
 
 # Create multi-panel comparison with both configurations
-fig_multi = plot_kernel_comparison_multi(df, sizes; df2=df2)
+fig_multi = plot_kernel_comparison_multi(df, sizes)
 save("perfs/cuda/figures/benchmark/matvec_benchmark_comparison.png", fig_multi)
 
 @info "Benchmarks complete. Access results via `df`, `df2`, and figures via `figures`"

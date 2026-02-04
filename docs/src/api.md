@@ -2,34 +2,34 @@
 
 ## Copy
 ```@docs
-Luma.vcopy!
-Luma.setvalue!
+KernelForge.vcopy!
+KernelForge.setvalue!
 ```
 
 ## Map-Reduce
 ```@docs
-Luma.mapreduce
-Luma.mapreduce!
-Luma.mapreduce2d
-Luma.mapreduce2d!
-Luma.mapreduce1d
-Luma.mapreduce1d!
+KernelForge.mapreduce
+KernelForge.mapreduce!
+KernelForge.mapreduce2d
+KernelForge.mapreduce2d!
+KernelForge.mapreduce1d
+KernelForge.mapreduce1d!
 ```
 
 ## Scan
 ```@docs
-Luma.scan
-Luma.scan!
+KernelForge.scan
+KernelForge.scan!
 ```
 
 ## Matrix-Vector
 ```@docs
-Luma.matvec
-Luma.matvec!
-Luma.vecmat!
+KernelForge.matvec
+KernelForge.matvec!
+KernelForge.vecmat!
 ```
 
 ## Utilities
 ```@docs
-Luma.get_allocation
+KernelForge.get_allocation
 ```

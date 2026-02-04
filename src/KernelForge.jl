@@ -1,4 +1,4 @@
-module Luma
+module KernelForge
 
 using KernelIntrinsics
 using KernelAbstractions
@@ -34,4 +34,4 @@ include("extras/unitfloats.jl")
 include("linear_algebra/reductions.jl")
 
 
-end # module Luma
+end # module KernelForge

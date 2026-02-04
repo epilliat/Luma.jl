@@ -46,7 +46,7 @@ col_means = mapreduce2d(identity, +, A, 1; g=x -> x / size(A, 1))
 row_ss = mapreduce2d(abs2, +, A, 2)
 ```
 
-See also: [`Luma.mapreduce2d!`](@ref) for the in-place version.
+See also: [`KernelForge.mapreduce2d!`](@ref) for the in-place version.
 """
 function mapreduce2d(
     f::F, op::O,
@@ -111,7 +111,7 @@ mapreduce2d!(identity, +, col_sums, A, 1)
 mapreduce2d!(identity, max, row_maxs, A, 2)
 ```
 
-See also: [`Luma.mapreduce2d`](@ref) for the allocating version.
+See also: [`KernelForge.mapreduce2d`](@ref) for the allocating version.
 """
 function mapreduce2d!(
     f::F, op::O,

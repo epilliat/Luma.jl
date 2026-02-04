@@ -1,7 +1,7 @@
 #=
 MapReduce Comprehensive Benchmark Suite
 =======================================
-Compares Luma.mapreduce! against CUDA.jl, AcceleratedKernels (AK), and CUB
+Compares KernelForge.mapreduce! against CUDA.jl, AcceleratedKernels (AK), and CUB
 across different data types (Float32, UnitFloat8) and problem sizes (1M, 100M).
 
 Methodology:
@@ -19,13 +19,13 @@ using Pkg
 Pkg.activate("$(@__DIR__)/../")
 
 # Development paths (uncomment if needed)
-# luma_path = abspath("$(@__DIR__)/../../../")
-# Pkg.develop(path=luma_path)
+# KernelForge_path = abspath("$(@__DIR__)/../../../")
+# Pkg.develop(path=KernelForge_path)
 # ma_path = abspath("/home/emmanuel/Packages/KernelIntrinsics.jl/")
 # Pkg.develop(path=ma_path)
 
-using Luma
-using Luma: UnitFloat8
+using KernelForge
+using KernelForge: UnitFloat8
 using Plots
 using KernelAbstractions, Test, CUDA, BenchmarkTools, DataFrames
 import AcceleratedKernels as AK
@@ -91,7 +91,7 @@ algo = "Sum"
 N = 1_000_000
 
 #-----------------------------------------------------------------------------
-# 1.1 Luma Default Configuration
+# 1.1 KernelForge Default Configuration
 #     Uses automatic parameter selection (Nitem, FlagType, etc.)
 #-----------------------------------------------------------------------------
 
@@ -102,11 +102,11 @@ for T in [Float32, UnitFloat8]
   src = CuArray{T}(ones(T, N))
   dst = CuArray{T}([zero(T)])
 
-  run_benchmark!(bench, () -> Luma.mapreduce!(f, op, dst, src), T, N, "Luma Def", algo)
+  run_benchmark!(bench, () -> KernelForge.mapreduce!(f, op, dst, src), T, N, "Forge Def", algo)
 end
 
 #-----------------------------------------------------------------------------
-# 1.2 Luma Optimized Configuration
+# 1.2 KernelForge Optimized Configuration
 #     - UInt64 flags: skips flag initialization (faster for large problems)
 #     - Pre-allocated tmp: excludes allocation from timing
 #-----------------------------------------------------------------------------
@@ -123,11 +123,11 @@ for T in [Float32, UnitFloat8]
   dst = CuArray{T}([zero(T)])
 
   # Pre-allocate temporary buffers
-  tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks, eltype=H, FlagType)
+  tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,); blocks, eltype=H, FlagType)
 
   run_benchmark!(bench,
-    () -> Luma.mapreduce!(f, op, dst, src; tmp, FlagType),
-    T, N, "Luma Opt", algo)
+    () -> KernelForge.mapreduce!(f, op, dst, src; tmp, FlagType),
+    T, N, "Forge Opt", algo)
 end
 
 #-----------------------------------------------------------------------------
@@ -209,7 +209,7 @@ bench_with_cub = vcat(bench, cub_f32, cub_u8; cols=:union)
 =============================================================================#
 
 #%%
-plot_names = ["CUDA", "AK", "Luma Def", "Luma Opt", "Cub"]
+plot_names = ["CUDA", "AK", "Forge Def", "Forge Opt", "Cub"]
 
 plot1 = create_kernel_stacked_barplot(
   bench_with_cub;
@@ -237,7 +237,7 @@ bench = DataFrame()
 N = 100_000_000
 
 #-----------------------------------------------------------------------------
-# 4.1 Luma Default
+# 4.1 KernelForge Default
 #-----------------------------------------------------------------------------
 
 for T in [Float32, UnitFloat8]
@@ -247,11 +247,11 @@ for T in [Float32, UnitFloat8]
   src = CuArray{T}(ones(T, N))
   dst = CuArray{T}([zero(T)])
 
-  run_benchmark!(bench, () -> Luma.mapreduce!(f, op, dst, src), T, N, "Luma Def", algo)
+  run_benchmark!(bench, () -> KernelForge.mapreduce!(f, op, dst, src), T, N, "Forge Def", algo)
 end
 
 #-----------------------------------------------------------------------------
-# 4.2 Luma Optimized (with pre-allocated temporaries)
+# 4.2 KernelForge Optimized (with pre-allocated temporaries)
 #-----------------------------------------------------------------------------
 
 #%%
@@ -265,11 +265,11 @@ for T in [Float32, UnitFloat8]
   src = CuArray{T}(ones(T, N))
   dst = CuArray{T}([zero(T)])
 
-  tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks, eltype, FlagType)
+  tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,); blocks, eltype, FlagType)
 
   run_benchmark!(bench,
-    () -> Luma.mapreduce!(f, op, dst, src; tmp, FlagType),
-    T, N, "Luma Opt", algo)
+    () -> KernelForge.mapreduce!(f, op, dst, src; tmp, FlagType),
+    T, N, "Forge Opt", algo)
 end
 
 #-----------------------------------------------------------------------------

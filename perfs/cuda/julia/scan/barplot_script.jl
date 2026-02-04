@@ -1,7 +1,7 @@
 #=
 Scan Performance Benchmarking Script
 ====================================
-Compares Luma.scan! against CUDA.accumulate!, AcceleratedKernels, and CUB for prefix scan.
+Compares KernelForge.scan! against CUDA.accumulate!, AcceleratedKernels, and CUB for prefix scan.
 
 Methodology:
 - 500ms warm-up phase to ensure JIT compilation and GPU initialization
@@ -14,7 +14,7 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__)/../../")
 
-using Luma
+using KernelForge
 using CUDA
 using KernelAbstractions
 using BenchmarkTools
@@ -29,12 +29,12 @@ using Printf
 const METHOD_COLORS = Dict(
     "CUDA" => colorant"#CC79A7",   # pink/mauve
     "AK" => colorant"#009E73",     # bluish green
-    "Luma" => colorant"#0072B2",   # blue
+    "Forge" => colorant"#0072B2",   # blue
     "CUB" => colorant"#00008B"     # dark blue
 )
 
-# Method order: CUDA -> AK -> Luma -> CUB
-const METHOD_ORDER = ["CUDA", "AK", "Luma", "CUB"]
+# Method order: CUDA -> AK -> KernelForge -> CUB
+const METHOD_ORDER = ["CUDA", "AK", "Forge", "CUB"]
 
 # Helper functions
 function warmup(f; duration=0.5)
@@ -153,8 +153,8 @@ function run_scan_benchmarks(n::Int, ::Type{T}, op=+; cub_exe::String="") where 
     println("Scan: n=$n, T=$T, op=$op")
     println("="^60)
 
-    luma_stats = bench("Luma.scan!", () -> Luma.scan!(op, dst, src))
     cuda_stats = bench("CUDA.accumulate!", () -> CUDA.accumulate!(op, dst, src))
+    KernelForge_stats = bench("KernelForge.scan!", () -> KernelForge.scan!(op, dst, src))
     ak_stats = bench("AcceleratedKernels", () -> AcceleratedKernels.accumulate!(op, dst, src; init=zero(T)))
 
     # CUB benchmark (if executable provided)
@@ -165,7 +165,7 @@ function run_scan_benchmarks(n::Int, ::Type{T}, op=+; cub_exe::String="") where 
         (; mean_kernel_μs=NaN, std_kernel_μs=NaN, mean_total_μs=NaN, std_total_μs=NaN)
     end
 
-    return (luma=luma_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
+    return (KernelForge=KernelForge_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
 end
 
 """
@@ -181,15 +181,15 @@ function run_all_benchmarks(sizes::Vector{Int}, types::Vector{DataType};
         for T in types
             stats = run_scan_benchmarks(n, T; cub_exe)
 
-            # Add Luma result
+            # Add KernelForge result
             push!(rows, (
                 n=n,
                 T=string(T),
-                method="Luma",
-                mean_kernel_μs=stats.luma.mean_kernel_μs,
-                std_kernel_μs=stats.luma.std_kernel_μs,
-                mean_total_μs=stats.luma.mean_total_μs,
-                std_total_μs=stats.luma.std_total_μs
+                method="Forge",
+                mean_kernel_μs=stats.KernelForge.mean_kernel_μs,
+                std_kernel_μs=stats.KernelForge.std_kernel_μs,
+                mean_total_μs=stats.KernelForge.mean_total_μs,
+                std_total_μs=stats.KernelForge.std_total_μs
             ))
 
             # Add CUDA result
@@ -266,7 +266,7 @@ end
     plot_scan_comparison(df::DataFrame, n::Int; kwargs...) -> Figure
 
 Create a grouped barplot comparing scan implementations.
-Groups are data types (Float32, Float64), bars within groups are methods (CUDA, AK, Luma, CUB).
+Groups are data types (Float32, Float64), bars within groups are methods (CUDA, AK, KernelForge, CUB).
 Each bar is stacked: kernel time (solid) + overhead (alpha).
 Note: CUB has no overhead (pure kernel time measurement).
 """
@@ -359,8 +359,8 @@ function plot_scan_comparison(
         errorbars!(ax, data.x, data.kernel_vals_μs, data.err_vals_μs, color=:black, whiskerwidth=6)
 
         # Value labels with fixed spacing above bars
-        # Use bold font for Luma
-        label_font = method == "Luma" ? :bold : :regular
+        # Use bold font for KernelForge
+        label_font = method == "Forge" ? :bold : :regular
         for (xi, ki, oi, ei) in zip(data.x, data.kernel_vals_μs, data.overhead_vals_μs, data.err_vals_μs)
             if ki > 0
                 bar_top = ki + oi
@@ -419,7 +419,7 @@ end
     plot_scan_comparison_multi(df::DataFrame, sizes::Vector{Int}; kwargs...) -> Figure
 
 Create multiple grouped barplots side by side, one for each n value.
-Groups are data types (Float32, Float64), bars are methods (CUDA, AK, Luma, CUB).
+Groups are data types (Float32, Float64), bars are methods (CUDA, AK, KernelForge, CUB).
 Left plot uses μs, right plot uses ms.
 """
 function plot_scan_comparison_multi(
@@ -508,8 +508,8 @@ function plot_scan_comparison_multi(
             errorbars!(ax, data.x, data.kernel_vals, data.err_vals, color=:black, whiskerwidth=6)
 
             # Value labels with fixed spacing above bars
-            # Use bold font for Luma
-            label_font = method == "Luma" ? :bold : :regular
+            # Use bold font for KernelForge
+            label_font = method == "Forge" ? :bold : :regular
             for (xi, ki, oi, ei) in zip(data.x, data.kernel_vals, data.overhead_vals, data.err_vals)
                 if ki > 0
                     bar_top = ki + oi
@@ -550,6 +550,7 @@ end
   Main execution
 =============================================================================#
 #%%
+run_scan_benchmarks(1000_000, Float32, +)
 # Run benchmarks (only 1e6 and 1e8)
 sizes = [1_000_000, 100_000_000]
 df = run_all_benchmarks(sizes, [Float32, Float64])

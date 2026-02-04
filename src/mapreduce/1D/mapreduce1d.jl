@@ -34,7 +34,7 @@ x, y = CUDA.rand(Float32, 10_000), CUDA.rand(Float32, 10_000)
 result = mapreduce1d((a, b) -> a * b, +, (x, y); to_cpu=true)
 ```
 
-See also: [`Luma.mapreduce1d!`](@ref) for the in-place version.
+See also: [`KernelForge.mapreduce1d!`](@ref) for the in-place version.
 """
 function mapreduce1d end
 
@@ -67,13 +67,13 @@ dst = CUDA.zeros(Float32, 1)
 mapreduce1d!(identity, +, dst, x)
 
 # With pre-allocated temporary for repeated calls
-tmp = Luma.get_allocation(mapreduce1d!, x)
+tmp = KernelForge.get_allocation(mapreduce1d!, x)
 for i in 1:100
     mapreduce1d!(identity, +, dst, x; tmp)
 end
 ```
 
-See also: [`Luma.mapreduce1d`](@ref) for the allocating version.
+See also: [`KernelForge.mapreduce1d`](@ref) for the allocating version.
 """
 function mapreduce1d! end
 
@@ -114,7 +114,7 @@ Allocate temporary buffer for `mapreduce1d!`. Useful for repeated reductions.
 # Examples
 ```julia
 x = CUDA.rand(Float32, 10_000)
-tmp = Luma.get_allocation(mapreduce1d!, x)
+tmp = KernelForge.get_allocation(mapreduce1d!, x)
 dst = CUDA.zeros(Float32, 1)
 
 for i in 1:100

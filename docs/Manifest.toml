@@ -2,7 +2,7 @@
 
 julia_version = "1.12.3"
 manifest_format = "2.0"
-project_hash = "9869d2d01ada0c88722f563200ff5bae181a30aa"
+project_hash = "b5a2964caa48129c9376c36fb45f17f11a008110"
 
 [[deps.ANSIColoredPrinters]]
 git-tree-sha1 = "574baf8110975760d391c710b6341da1afa48d8c"
@@ -130,9 +130,9 @@ version = "3.7.0+0"
 
 [[deps.Git_jll]]
 deps = ["Artifacts", "Expat_jll", "JLLWrappers", "LibCURL_jll", "Libdl", "Libiconv_jll", "OpenSSL_jll", "PCRE2_jll", "Zlib_jll"]
-git-tree-sha1 = "46bd50c245fe49ed87377c014a928a549b9ef7ed"
+git-tree-sha1 = "dc34a3e3d96b4ed305b641e626dc14c12b7824b8"
 uuid = "f8c6e375-362e-5223-8a59-34ff63f689eb"
-version = "2.52.0+0"
+version = "2.53.0+0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
@@ -184,11 +184,17 @@ version = "0.9.39"
     LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
     SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
 
+[[deps.KernelForge]]
+deps = ["ArgCheck", "GPUArraysCore", "KernelAbstractions", "KernelIntrinsics"]
+path = ".."
+uuid = "d2e71dfc-f0f5-4b9d-8de2-a66a4c724860"
+version = "0.1.0"
+
 [[deps.KernelIntrinsics]]
-deps = ["InteractiveUtils", "KernelAbstractions", "LLVM"]
-git-tree-sha1 = "cb2f70d76bf1ff7a2686f0be22e1928ad78a8857"
+deps = ["KernelAbstractions", "LLVM"]
+path = "../../KernelIntrinsics.jl"
 uuid = "f9588fbb-d238-4998-b15a-468e8766d49a"
-version = "0.1.1"
+version = "0.1.2"
 
     [deps.KernelIntrinsics.extensions]
     KernelIntrinsicsCUDAExt = "CUDA"
@@ -267,18 +273,6 @@ version = "1.12.0"
 [[deps.Logging]]
 uuid = "56ddb016-857b-54e1-b83d-db4d58db5568"
 version = "1.11.0"
-
-[[deps.Luma]]
-deps = ["ArgCheck", "GPUArraysCore", "KernelAbstractions", "KernelIntrinsics"]
-path = ".."
-uuid = "d2e71dfc-f0f5-4b9d-8de2-a66a4c724860"
-version = "0.1.0"
-
-    [deps.Luma.extensions]
-    LumaCUDAExt = "CUDA"
-
-    [deps.Luma.weakdeps]
-    CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
 
 [[deps.MacroTools]]
 git-tree-sha1 = "1e0228a030642014fe5cfe68c2c0a818f9e3f522"

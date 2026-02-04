@@ -1,7 +1,7 @@
 #=
 MapReduce Performance Benchmarking Script
 ==========================================
-Compares Luma.mapreduce! against CUDA.mapreduce and AcceleratedKernels.mapreduce
+Compares KernelForge.mapreduce! against CUDA.mapreduce and AcceleratedKernels.mapreduce
 across different data types and configurations.
 
 Methodology:
@@ -13,8 +13,8 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__())/../../")
 
-using Luma
-using Luma: UnitFloat8
+using KernelForge
+using KernelForge: UnitFloat8
 using KernelAbstractions, CUDA, BenchmarkTools
 using AcceleratedKernels
 using Quaternions
@@ -34,10 +34,10 @@ function bench(name, f; duration=0.5)
   display(prof)
 end
 
-function run_mapreduce_benchmarks(src::CuArray{T}, f=identity; init=zero(T), luma_kw...) where T
+function run_mapreduce_benchmarks(src::CuArray{T}, f=identity; init=zero(T), KernelForge_kw...) where T
   dst = CuArray{T}([init])
 
-  bench("Luma.mapreduce!", () -> Luma.mapreduce!(f, +, dst, src; luma_kw...))
+  bench("KernelForge.mapreduce!", () -> KernelForge.mapreduce!(f, +, dst, src; KernelForge_kw...))
   bench("CUDA.mapreduce", () -> mapreduce(f, +, src))
   bench("AcceleratedKernels", () -> AcceleratedKernels.mapreduce(f, +, src; init))
 end
@@ -54,7 +54,7 @@ run_mapreduce_benchmarks(CuArray{Float32}(1:1_000_000))
 =============================================================================#
 #%%
 let src = CuArray{Float32}(1:1_000_000)
-  tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks=100, FlagType=UInt64)
+  tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,); blocks=100, FlagType=UInt64)
   run_mapreduce_benchmarks(src; tmp, FlagType=UInt64, Nitem=4)
 end
 
@@ -85,9 +85,9 @@ let n = 1_000_000, T = UnitFloat8
   dst = CuArray{T}([T(0)])
   f = Float32  # Promote to Float32 during reduction
 
-  tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks=1000, FlagType=UInt64)
+  tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,); blocks=1000, FlagType=UInt64)
 
-  bench("Luma.mapreduce! (UnitFloat8→Float32)", () -> Luma.mapreduce!(f, +, dst, src; tmp))
+  bench("KernelForge.mapreduce! (UnitFloat8→Float32)", () -> KernelForge.mapreduce!(f, +, dst, src; tmp))
   bench("CUDA.mapreduce (UnitFloat8)", () -> mapreduce(f, +, src))
   bench("AcceleratedKernels (UnitFloat8)", () -> AcceleratedKernels.mapreduce(f, +, src; init=T(0)))
 end

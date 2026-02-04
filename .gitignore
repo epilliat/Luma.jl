@@ -5,3 +5,4 @@ test/local/
 **/build
 **/bin
 *.csv
+/perfs/cuda/figures

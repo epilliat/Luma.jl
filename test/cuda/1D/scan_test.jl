@@ -1,13 +1,13 @@
-using Test, CUDA, Luma
+using Test, CUDA, KernelForge
 
-@testset "Luma.scan! basic tests" begin
+@testset "KernelForge.scan! basic tests" begin
     # Basic multiplication test
     n = 100_000
     T = Float32
     src_cpu = rand(T, n)
     src = CuArray(src_cpu)
     dst = CUDA.zeros(T, n)
-    CUDA.@sync Luma.scan!(*, dst, src)
+    CUDA.@sync KernelForge.scan!(*, dst, src)
     @test isapprox(dst, CuArray(accumulate(*, src_cpu)))
 
     # Small array test
@@ -16,11 +16,11 @@ using Test, CUDA, Luma
     src_cpu = rand(T, n)
     src = CuArray(src_cpu)
     dst = CUDA.zeros(T, n)
-    CUDA.@sync Luma.scan!(identity, *, dst, src)
+    CUDA.@sync KernelForge.scan!(identity, *, dst, src)
     @test isapprox(dst, CuArray(accumulate(*, src_cpu)))
 end
 
-@testset "Luma.scan! with Quaternions (non-commutative)" begin
+@testset "KernelForge.scan! with Quaternions (non-commutative)" begin
     using Quaternions
     n = 1_000_000
     T = QuaternionF64
@@ -28,11 +28,11 @@ end
     src_cpu = [QuaternionF64((x ./ sqrt(sum(x .^ 2)))...) for x in eachcol(randn(4, n))]
     src = CuArray(src_cpu)
     dst = CuArray(zeros(T, n))  # zeros(T, n) works for Quaternions
-    CUDA.@sync Luma.scan!(identity, *, dst, src)
+    CUDA.@sync KernelForge.scan!(identity, *, dst, src)
     @test isapprox(dst, CuArray(accumulate(*, src_cpu)))
 end
 
-@testset "Luma.scan! comprehensive tests" begin
+@testset "KernelForge.scan! comprehensive tests" begin
     test_sizes = [1, 5, 10, 100, 1_000, 10_000, 1_000_000]
     test_types = [Float64, Int32]
     test_ops = [
@@ -53,7 +53,7 @@ end
                         end
                         src = CuArray(src_cpu)
                         dst = CUDA.zeros(T, n)
-                        CUDA.@sync Luma.scan!(op, dst, src)
+                        CUDA.@sync KernelForge.scan!(op, dst, src)
                         expected = accumulate(op, src_cpu)
                         if T <: AbstractFloat
                             @test isapprox(Array(dst), expected)
@@ -78,7 +78,7 @@ end
                     src_cpu = rand(UInt8, n)
                     src = CuArray(src_cpu)
                     dst = CUDA.zeros(UInt8, n)
-                    CUDA.@sync Luma.scan!(op, dst, src)
+                    CUDA.@sync KernelForge.scan!(op, dst, src)
                     @test Array(dst) == accumulate(op, src_cpu)
                 end
             end
@@ -86,7 +86,7 @@ end
     end
 end
 
-@testset "Luma.scan! edge sizes (Float64, +)" begin
+@testset "KernelForge.scan! edge sizes (Float64, +)" begin
     # Edge sizes around common GPU boundaries
     edge_sizes = [
         # Tiny sizes
@@ -120,7 +120,7 @@ end
             src_cpu = rand(Float64, n)
             src = CuArray(src_cpu)
             dst = CUDA.zeros(Float64, n)
-            CUDA.@sync Luma.scan!(+, dst, src)
+            CUDA.@sync KernelForge.scan!(+, dst, src)
             @test isapprox(Array(dst), accumulate(+, src_cpu))
         end
     end

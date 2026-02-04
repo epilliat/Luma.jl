@@ -1,7 +1,7 @@
 #=
 Copy Performance Benchmarking Script
 =====================================
-Compares Luma.vcopy! against CUDA.copyto!, KernelAbstractions, and CUB
+Compares KernelForge.vcopy! against CUDA.copyto!, KernelAbstractions, and CUB
 for Float32 and UInt8 data types.
 
 Methodology:
@@ -15,7 +15,7 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__)/../../")
 
-using Luma
+using KernelForge
 using CUDA
 using KernelAbstractions
 using BenchmarkTools
@@ -28,13 +28,13 @@ using Printf
 # Colorblind-safe palette (Wong) + dark blue for CUB
 const METHOD_COLORS = Dict(
     "CUDA" => colorant"#CC79A7",   # pink/mauve
-    "Luma v1" => colorant"#0072B2",   # blue
-    "Luma v4" => colorant"#E69F00",   # orange (vectorized)
+    "Forge v1" => colorant"#0072B2",   # blue
+    "Forge v4" => colorant"#E69F00",   # orange (vectorized)
     "CUB" => colorant"#00008B"     # dark blue
 )
 
-# Method order: CUDA -> Luma v1 -> Luma v4 -> CUB
-const METHOD_ORDER = ["CUDA", "Luma v1", "Luma v4", "CUB"]
+# Method order: CUDA -> KernelForge v1 -> KernelForge v4 -> CUB
+const METHOD_ORDER = ["CUDA", "Forge v1", "Forge v4", "CUB"]
 
 # Helper functions
 function warmup(f; duration=0.5)
@@ -159,11 +159,11 @@ function run_copy_benchmarks(n::Int, ::Type{T}; cub_exe::String="") where T
     println("Copy: n=$n, T=$T")
     println("="^60)
 
-    # Luma v1 (scalar)
-    luma_v1_stats = bench("Luma v1", () -> Luma.vcopy!(dst, src; Nitem=1))
+    # KernelForge v1 (scalar)
+    KernelForge_v1_stats = bench("Forge v1", () -> KernelForge.vcopy!(dst, src; Nitem=1))
 
-    # Luma v4 (vectorized)
-    luma_v4_stats = bench("Luma v4", () -> Luma.vcopy!(dst, src; Nitem=4))
+    # KernelForge v4 (vectorized)
+    KernelForge_v4_stats = bench("Forge v4", () -> KernelForge.vcopy!(dst, src; Nitem=4))
 
     # CUDA.copyto!
     cuda_stats = bench("CUDA.copyto!", () -> copyto!(dst, src))
@@ -176,7 +176,7 @@ function run_copy_benchmarks(n::Int, ::Type{T}; cub_exe::String="") where T
         (; mean_kernel_μs=NaN, std_kernel_μs=NaN, mean_total_μs=NaN, std_total_μs=NaN)
     end
 
-    return (luma_v1=luma_v1_stats, luma_v4=luma_v4_stats, cuda=cuda_stats, cub=cub_stats)
+    return (KernelForge_v1=KernelForge_v1_stats, KernelForge_v4=KernelForge_v4_stats, cuda=cuda_stats, cub=cub_stats)
 end
 
 """
@@ -193,8 +193,8 @@ function run_all_benchmarks(sizes::Vector{Int};
         # Float32 benchmarks
         stats_f32 = run_copy_benchmarks(n, Float32; cub_exe)
 
-        for (method, method_stats) in [("Luma v1", stats_f32.luma_v1),
-            ("Luma v4", stats_f32.luma_v4),
+        for (method, method_stats) in [("Forge v1", stats_f32.KernelForge_v1),
+            ("Forge v4", stats_f32.KernelForge_v4),
             ("CUDA", stats_f32.cuda),
             ("CUB", stats_f32.cub)]
             push!(rows, (
@@ -211,8 +211,8 @@ function run_all_benchmarks(sizes::Vector{Int};
         # UInt8 benchmarks
         stats_u8 = run_copy_benchmarks(n, UInt8; cub_exe)
 
-        for (method, method_stats) in [("Luma v1", stats_u8.luma_v1),
-            ("Luma v4", stats_u8.luma_v4),
+        for (method, method_stats) in [("Forge v1", stats_u8.KernelForge_v1),
+            ("Forge v4", stats_u8.KernelForge_v4),
             ("CUDA", stats_u8.cuda),
             ("CUB", stats_u8.cub)]
             push!(rows, (
@@ -248,14 +248,14 @@ function run_scaling_benchmarks(sizes::Vector{Int};
             dst = CuArray{T}(undef, n)
 
             # Warm-up
-            warmup(() -> Luma.vcopy!(dst, src; Nitem=1))
-            warmup(() -> Luma.vcopy!(dst, src; Nitem=4))
+            warmup(() -> KernelForge.vcopy!(dst, src; Nitem=1))
+            warmup(() -> KernelForge.vcopy!(dst, src; Nitem=4))
             warmup(() -> copyto!(dst, src))
 
             # Quick benchmark (fewer trials for scaling)
             for (method, f) in [
-                ("Luma v1", () -> Luma.vcopy!(dst, src; Nitem=1)),
-                ("Luma v4", () -> Luma.vcopy!(dst, src; Nitem=4)),
+                ("Forge v1", () -> KernelForge.vcopy!(dst, src; Nitem=1)),
+                ("Forge v4", () -> KernelForge.vcopy!(dst, src; Nitem=4)),
                 ("CUDA", () -> copyto!(dst, src))
             ]
                 kernel_times = Float64[]
@@ -314,7 +314,7 @@ end
     plot_copy_comparison(df::DataFrame, n::Int; kwargs...) -> Figure
 
 Create a grouped barplot comparing copy implementations.
-Groups are data types (Float32, UInt8), bars within groups are methods (CUDA, KA, Luma, CUB).
+Groups are data types (Float32, UInt8), bars within groups are methods (CUDA, KA, KernelForge, CUB).
 Each bar is stacked: kernel time (solid) + overhead (alpha).
 """
 function plot_copy_comparison(
@@ -406,8 +406,8 @@ function plot_copy_comparison(
         errorbars!(ax, data.x, data.kernel_vals_μs, data.err_vals_μs, color=:black, whiskerwidth=6)
 
         # Value labels with fixed spacing above bars
-        # Use bold font for Luma v4
-        label_font = method == "Luma v4" ? :bold : :regular
+        # Use bold font for KernelForge v4
+        label_font = method == "Forge v4" ? :bold : :regular
         for (i, (xi, ki, oi, ei)) in enumerate(zip(data.x, data.kernel_vals_μs, data.overhead_vals_μs, data.err_vals_μs))
             if ki > 0
                 bar_top = ki + oi
@@ -462,7 +462,7 @@ end
     plot_copy_comparison_multi(df::DataFrame, sizes::Vector{Int}; kwargs...) -> Figure
 
 Create multiple grouped barplots side by side, one for each n value.
-Groups are data types (Float32, UInt8), bars are methods (CUDA, KA, Luma, CUB).
+Groups are data types (Float32, UInt8), bars are methods (CUDA, KA, KernelForge, CUB).
 Left plot uses μs, right plot uses ms.
 """
 function plot_copy_comparison_multi(
@@ -551,8 +551,8 @@ function plot_copy_comparison_multi(
             errorbars!(ax, data.x, data.kernel_vals, data.err_vals, color=:black, whiskerwidth=6)
 
             # Value labels with fixed spacing above bars
-            # Use bold font for Luma
-            label_font = method == "Luma" ? :bold : :regular
+            # Use bold font for KernelForge
+            label_font = method == "Forge" ? :bold : :regular
             for (i, (xi, ki, oi, ei)) in enumerate(zip(data.x, data.kernel_vals, data.overhead_vals, data.err_vals))
                 if ki > 0
                     bar_top = ki + oi
@@ -599,7 +599,7 @@ function plot_scaling(
     df::DataFrame;
     figsize::Tuple{Int,Int}=(1000, 450),
     method_colors::Dict{String,<:Any}=METHOD_COLORS,
-    method_order::Vector{String}=["CUDA", "Luma v1", "Luma v4"]  # CUB excluded for scaling
+    method_order::Vector{String}=["CUDA", "Forge v1", "Forge v4"]  # CUB excluded for scaling
 )
     fig = Figure(size=figsize)
 
@@ -638,7 +638,7 @@ function plot_scaling(
             stds = sorted_data.std_kernel_μs
 
             color = method_colors[method]
-            linewidth = method == "Luma v4" ? 3 : 2
+            linewidth = method == "Forge v4" ? 3 : 2
 
             # Plot line
             lines!(ax, ns, means, color=color, linewidth=linewidth, label=method)
@@ -677,7 +677,7 @@ function plot_bandwidth(
     df::DataFrame;
     figsize::Tuple{Int,Int}=(1000, 450),
     method_colors::Dict{String,<:Any}=METHOD_COLORS,
-    method_order::Vector{String}=["CUDA", "Luma v1", "Luma v4"],
+    method_order::Vector{String}=["CUDA", "Forge v1", "Forge v4"],
     peak_bandwidth_gb_s::Float64=1008.0  # RTX 4090 peak bandwidth
 )
     fig = Figure(size=figsize)
@@ -723,15 +723,15 @@ function plot_bandwidth(
             bandwidth_gb_s = bytes ./ times_s ./ 1e9
 
             color = method_colors[method]
-            linewidth = method == "Luma v4" ? 3 : 2
+            linewidth = method == "Forge v4" ? 3 : 2
 
             # Plot line
             lines!(ax, ns, bandwidth_gb_s, color=color, linewidth=linewidth, label=method)
         end
 
         # Add peak bandwidth line
-        hlines!(ax, [peak_bandwidth_gb_s], color=:red, linestyle=:dash, linewidth=1,
-            label="Peak bandwidth")
+        #hlines!(ax, [peak_bandwidth_gb_s], color=:red, linestyle=:dash, linewidth=1,
+        #    label="Peak bandwidth")
 
         # Add L2 cache line
         l2_size_bytes = 24 * 1024 * 1024
@@ -759,7 +759,7 @@ end
   Main execution
 =============================================================================#
 run_copy_benchmarks(1000, UInt8)
-run_copy_benchmarks(1000, Float32)
+# run_copy_benchmarks(1000, Float32)
 # Run bar chart benchmarks (1e6 and 1e8)
 sizes_bar = [1_000_000, 100_000_000]
 df_bar = run_all_benchmarks(sizes_bar)
@@ -791,15 +791,9 @@ df_scaling = run_scaling_benchmarks(sizes_scaling; trials=30)
 println("\n" * "="^60)
 println("BENCHMARK RESULTS (Scaling)")
 println("="^60)
+
 show(df_scaling[1:min(20, nrow(df_scaling)), :], allrows=true, allcols=true)
 println("... ($(nrow(df_scaling)) total rows)")
 
 # Create scaling plot
-fig_scaling = plot_scaling(df_scaling)
 save("perfs/cuda/figures/benchmark/copy_scaling.png", fig_scaling)
-
-# Create bandwidth plot
-fig_bandwidth = plot_bandwidth(df_scaling)
-save("perfs/cuda/figures/benchmark/copy_bandwidth.png", fig_bandwidth)
-
-@info "Benchmarks complete. Access results via `df_bar`, `df_scaling` and figures via `figures`"

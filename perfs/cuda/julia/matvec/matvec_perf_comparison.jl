@@ -1,7 +1,7 @@
 #=
 MatVec Performance Benchmarking Script
 ======================================
-Compares Luma.matvec! against cuBLAS (via src * x) for matrix-vector multiplication.
+Compares KernelForge.matvec! against cuBLAS (via src * x) for matrix-vector multiplication.
 Methodology:
 - 500ms warm-up phase to ensure JIT compilation and GPU initialization
 - CUDA.@profile for accurate kernel timing
@@ -10,7 +10,7 @@ Methodology:
 using Revise
 using Pkg
 Pkg.activate("$(@__DIR__())/../../")
-using Luma
+using KernelForge
 using CUDA
 
 # Helper functions
@@ -39,7 +39,7 @@ function run_matvec_benchmarks(n::Int, p::Int)
     println("n=$n, p=$p  (n×p = $(n*p))")
     println("="^60)
 
-    bench("Luma.matvec!", () -> Luma.matvec!(*, +, dst, src, x))
+    bench("Forge.matvec!", () -> KernelForge.matvec!(*, +, dst, src, x))
     bench("cuBLAS (src * x)", () -> src * x)
 end
 

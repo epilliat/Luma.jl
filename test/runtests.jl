@@ -1,8 +1,7 @@
 using Test
 using CUDA
-using Luma
+using KernelForge
 using Random
-import InteractiveUtils: @which
 
 @testset "CUDA" begin
     @testset "copy" begin

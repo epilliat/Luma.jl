@@ -5,20 +5,20 @@ Pkg.activate("$(@__DIR__())/../")
 include("helpers/extract_infos.jl")
 include("helpers/illustration_tools.jl")
 
-luma_path = abspath("$(@__DIR__())/../../../")
-#Pkg.develop(path=luma_path)
+KernelForge_path = abspath("$(@__DIR__())/../../../")
+#Pkg.develop(path=KernelForge_path)
 
 ma_path = abspath("/home/emmanuel/Packages/KernelIntrinsics.jl/")
 #Pkg.develop(path=ma_path)
 #Pkg.instantiate()
 
-using Luma
+using KernelForge
 using KernelAbstractions, Test, CUDA, BenchmarkTools, DataFrames
 import AcceleratedKernels as AK
 using Quaternions
 
 tmax_timed = 1
-names = ["Cublas", "Luma", "CUDA.jl", "AK"]
+names = ["Cublas", "Forge", "CUDA.jl", "AK"]
 algos = ["Copy"]
 bench = DataFrame()
 
@@ -34,22 +34,22 @@ for Nitem in [1, 4]
         src = CuArray{T}([1 for _ in (1:N)])
         dst = CuArray{T}([0 for _ in (1:N)])
 
-        name = "Luma v$Nitem"
+        name = "Forge v$Nitem"
 
         start_time = time()
         while time() - start_time < 0.500  # 500ms warm-up
-            Luma.vcopy!(dst, src, Nitem=Nitem)
+            KernelForge.vcopy!(dst, src, Nitem=Nitem)
         end
-        prof = [CUDA.@profile Luma.vcopy!(dst, src, Nitem=Nitem) for _ in (1:100)]
+        prof = [CUDA.@profile KernelForge.vcopy!(dst, src, Nitem=Nitem) for _ in (1:100)]
         dt = 0
         dts = []
         while dt <= 2 * tmax_timed
-            timed = (CUDA.@timed Luma.vcopy!(dst, src, Nitem=Nitem))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
+            timed = (CUDA.@timed KernelForge.vcopy!(dst, src, Nitem=Nitem))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
             u = timed[:time]
             dt += u
             push!(dts, u)
         end
-        timed = (CUDA.@timed Luma.vcopy!(dst, src, Nitem=Nitem))
+        timed = (CUDA.@timed KernelForge.vcopy!(dst, src, Nitem=Nitem))
         benchmark_summary!(prof, timed, dts, T, N, name, algo, bench)
     end
 end
@@ -76,7 +76,7 @@ for Nitem in [1, 4]
         while time() - start_time < 0.500  # 500ms warm-up
             CUDA.@sync copy_ka!(dst, src)
         end
-        prof = [CUDA.@profile Luma.vcopy!(dst, src, Nitem=Nitem) for _ in (1:100)]
+        prof = [CUDA.@profile KernelForge.vcopy!(dst, src, Nitem=Nitem) for _ in (1:100)]
         dt = 0
         dts = []
         while dt <= 2 * tmax_timed
@@ -143,7 +143,7 @@ bench_with_cub = vcat(bench, cub_f32, cub_u8, cols=:union)
 p1 = create_kernel_stacked_barplot(bench_with_cub,
     algo="Copy",
     kernel_colors=[:blue, :red, :green, :orange],
-    overhead_alpha=0.7, names=["KA", "Luma v1", "Luma v4", "Cub"], time_unit=:ms)
+    overhead_alpha=0.7, names=["KA", "Forge v1", "Forge v4", "Cub"], time_unit=:ms)
 plot!(ylim=(0, 7))
 #savefig(plot, "$(@__DIR__())/../figures/vcopy_comparison.png")
 #%%
@@ -157,21 +157,21 @@ for N in Ns
             src = CuArray{T}([1 for _ in (1:N)])
             dst = CuArray{T}([0 for _ in (1:N)])
 
-            name = "Luma v$Nitem"
+            name = "Forge v$Nitem"
             #%%
             start_time = time()
             while time() - start_time < 0.500  # 500ms warm-up
-                Luma.vcopy!(dst, src, Nitem=Nitem)
+                KernelForge.vcopy!(dst, src, Nitem=Nitem)
             end
             dt = 0
             dts = []
             while dt <= 2 * tmax_timed
-                timed = (CUDA.@timed Luma.vcopy!(dst, src, Nitem=Nitem))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
+                timed = (CUDA.@timed KernelForge.vcopy!(dst, src, Nitem=Nitem))#(CUDA.@timed CUDA.@sync eval(exp_expr))[:time]
                 u = timed[:time]
                 dt += u
                 push!(dts, u)
             end
-            timed = (CUDA.@timed Luma.vcopy!(dst, src, Nitem=Nitem))
+            timed = (CUDA.@timed KernelForge.vcopy!(dst, src, Nitem=Nitem))
             push!(durations["v$Nitem"], mean(dts))
         end
     end

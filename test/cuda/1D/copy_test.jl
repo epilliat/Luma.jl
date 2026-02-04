@@ -5,7 +5,7 @@ src = CuArray{T}(src_cpu)
 dst = CuArray{T}([0 for _ in (1:n)])
 
 Nitem = 1
-Luma.vcopy!(dst, src; Nitem=Nitem)
+KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 @test all(dst .== src)
 
@@ -20,7 +20,7 @@ dst = CuArray{T}([0 for _ in (1:n)])
 Nitem = 4
 
 
-Luma.vcopy!(dst, src; Nitem=Nitem)
+KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 @test all(dst .== src)
 
@@ -39,7 +39,7 @@ src = CuArray{T}(src_cpu)
 dst = CuArray{T}([T(0, 0, 0) for _ in (1:n)])
 
 Nitem = 2
-Luma.vcopy!(dst, src; Nitem=Nitem)
+KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 @test all(dst .== src)
 
@@ -51,6 +51,6 @@ T = UInt8
 dst = CuArray{T}([0xff for _ in (1:n)])
 
 Nitem = 4
-Luma.setvalue!(dst, 0x00; Nitem=Nitem)
+KernelForge.setvalue!(dst, 0x00; Nitem=Nitem)
 
 @test all(dst .== 0x00)

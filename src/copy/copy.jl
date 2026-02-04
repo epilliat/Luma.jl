@@ -19,7 +19,7 @@ dst = CUDA.zeros(Float32, 1024)
 vcopy!(dst, src)
 ```
 
-See also: [`Luma.setvalue!`](@ref)
+See also: [`KernelForge.setvalue!`](@ref)
 """
 function vcopy!(dst::AbstractGPUVector, src::AbstractGPUVector; Nitem=4)
     backend = get_backend(src)
@@ -47,7 +47,7 @@ dst = CUDA.zeros(Float32, 1024)
 setvalue!(dst, 1.0f0)
 ```
 
-See also: [`Luma.vcopy!`](@ref)
+See also: [`KernelForge.vcopy!`](@ref)
 """
 function setvalue!(dst::AbstractGPUVector{T}, val::T; Nitem=4) where T
     backend = get_backend(dst)

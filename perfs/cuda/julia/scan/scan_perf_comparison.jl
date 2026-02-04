@@ -1,7 +1,7 @@
 #=
 Scan Performance Benchmarking Script
 ====================================
-Compares Luma.scan! against CUDA.accumulate! and AcceleratedKernels for prefix scan.
+Compares KernelForge.scan! against CUDA.accumulate! and AcceleratedKernels for prefix scan.
 Methodology:
 - 500ms warm-up phase to ensure JIT compilation and GPU initialization
 - CUDA.@profile for accurate kernel timing
@@ -10,7 +10,7 @@ Methodology:
 using Revise
 using Pkg
 Pkg.activate("$(@__DIR__)/../../")
-using Luma
+using KernelForge
 using CUDA
 using AcceleratedKernels
 using Quaternions
@@ -40,15 +40,15 @@ function sum_kernel_durations_μs(prof)
     return total_s * 1e6  # convert to μs
 end
 
-function run_scan_benchmarks(n::Int, ::Type{T}, op=+; src_init=:range, luma_kw...) where T
+function run_scan_benchmarks(n::Int, ::Type{T}, op=+; src_init=:range, KernelForge_kw...) where T
     src = src_init == :ones ? CUDA.ones(T, n) : CuArray{T}(1:n)
     dst = CUDA.zeros(T, n)
-    
+
     println("\n" * "="^60)
     println("Scan: n=$n, T=$T, op=$op")
     println("="^60)
-    
-    bench("Luma.scan!", () -> Luma.scan!(op, dst, src; luma_kw...))
+
+    bench("KernelForge.scan!", () -> KernelForge.scan!(op, dst, src; KernelForge_kw...))
     bench("CUDA.accumulate!", () -> CUDA.accumulate!(op, dst, src))
     bench("AcceleratedKernels", () -> AcceleratedKernels.accumulate!(op, dst, src; init=zero(T)))
 end
@@ -84,13 +84,13 @@ end
 let n = 1_000_000, T = Float32
     src = CuArray{T}(1:n)
     dst = CUDA.zeros(T, n)
-    tmp = Luma.get_allocation(Luma.scan!, dst, src; FlagType=UInt64)
-    
+    tmp = KernelForge.get_allocation(KernelForge.scan!, dst, src; FlagType=UInt64)
+
     println("\n" * "="^60)
     println("Scan with UInt64 flags: n=$n, T=$T")
     println("="^60)
-    
-    bench("Luma.scan! (UInt64 flags)", () -> Luma.scan!(+, dst, src; tmp, FlagType=UInt64))
+
+    bench("KernelForge.scan! (UInt64 flags)", () -> KernelForge.scan!(+, dst, src; tmp, FlagType=UInt64))
     bench("CUDA.accumulate!", () -> CUDA.accumulate!(+, dst, src))
     bench("AcceleratedKernels", () -> AcceleratedKernels.accumulate!(+, dst, src; init=zero(T)))
 end
@@ -104,12 +104,12 @@ for n in [10_000, 100_000, 1_000_000]
         src_cpu = [QuaternionF64((x ./ sqrt(sum(x .^ 2)))...) for x in eachcol(randn(4, n))]
         src = CuArray(src_cpu)
         dst = CuArray(zeros(T, n))
-        
+
         println("\n" * "="^60)
         println("Quaternion scan: n=$n, T=$T, op=$op")
         println("="^60)
-        
-        bench("Luma.scan!", () -> Luma.scan!(op, dst, src; Nitem=4))
+
+        bench("KernelForge.scan!", () -> KernelForge.scan!(op, dst, src; Nitem=4))
         bench("CUDA.accumulate!", () -> CUDA.accumulate!(op, dst, src))
         bench("AcceleratedKernels", () -> AcceleratedKernels.accumulate!(op, dst, src; init=one(T)))
     end

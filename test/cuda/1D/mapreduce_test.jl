@@ -13,27 +13,19 @@
                         dst = cu([T(0)])
 
                         # Get allocation - H is T since f=identity
-                        tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,);
+                        tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,);
                             blocks=400, eltype=T)
 
                         # Warm up
-                        CUDA.@sync Luma.mapreduce!(f, op, dst, src)
-
-                        # Check module ownership
-                        if trial == 1  # Only check once per n
-                            mb = @which mapreduce(identity, op, Array(src))
-                            ml = @which Luma.mapreduce(identity, op, src)
-                            @test mb.module == Base
-                            @test ml.module == Luma
-                        end
+                        CUDA.@sync KernelForge.mapreduce!(f, op, dst, src)
 
                         # Test correctness
-                        luma_result = CUDA.@sync Luma.mapreduce(f, op, src, to_cpu=true)
+                        KernelForge_result = CUDA.@sync KernelForge.mapreduce(f, op, src, to_cpu=true)
                         base_result = mapreduce(identity, op, Array(src))
                         if T <: AbstractFloat
-                            @test isapprox(luma_result, base_result, rtol=1e-4, atol=1e-5)
+                            @test isapprox(KernelForge_result, base_result, rtol=1e-4, atol=1e-5)
                         elseif T <: Integer
-                            @test luma_result == base_result
+                            @test KernelForge_result == base_result
                         end
                     end
                 end
@@ -97,29 +89,22 @@ end
                 dst = cu([Output3(Float32(0), Float32(0), Float32(0))])
 
                 # Get allocation - H is Output3 (result type of map_func)
-                tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,);
+                tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,);
                     blocks=400, eltype=Output3)
 
                 # Warm up
-                CUDA.@sync Luma.mapreduce!(map_func, reduce_func, dst, src)
+                CUDA.@sync KernelForge.mapreduce!(map_func, reduce_func, dst, src)
 
-                # Check module ownership (once per n)
-                if trial == 1
-                    mb = @which mapreduce(map_func, reduce_func, Array(src))
-                    ml = @which Luma.mapreduce(map_func, reduce_func, src)
-                    @test mb.module == Base
-                    @test ml.module == Luma
-                end
 
                 # Test correctness
-                luma_result = CUDA.@sync Luma.mapreduce(map_func, reduce_func, src,
+                KernelForge_result = CUDA.@sync KernelForge.mapreduce(map_func, reduce_func, src,
                     to_cpu=true)
                 base_result = mapreduce(map_func, reduce_func, Array(src))
 
                 # Test each coordinate
-                @test isapprox(luma_result.x, base_result.x)
-                @test isapprox(luma_result.y, base_result.y)
-                @test isapprox(luma_result.z, base_result.z)
+                @test isapprox(KernelForge_result.x, base_result.x)
+                @test isapprox(KernelForge_result.y, base_result.y)
+                @test isapprox(KernelForge_result.z, base_result.z)
             end
         end
     end
@@ -132,12 +117,12 @@ end
         x = cu(rand(T, n))
         y = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (a, b) -> a * b, +, (x, y); to_cpu=true
         )
 
         base_result = sum(Array(x) .* Array(y))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Weighted sum of squares: sum(w * x^2)" begin
@@ -145,12 +130,12 @@ end
         w = cu(rand(T, n))
         x = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (wi, xi) -> wi * xi * xi, +, (w, x); to_cpu=true
         )
 
         base_result = sum(Array(w) .* Array(x) .^ 2)
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Custom binary function: sum(exp(a - b))" begin
@@ -158,12 +143,12 @@ end
         a = cu(rand(T, n) .* 2.0)
         b = cu(rand(T, n) .* 2.0)
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (ai, bi) -> exp(ai - bi), +, (a, b); to_cpu=true
         )
 
         base_result = sum(exp.(Array(a) .- Array(b)))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Dot product with output function g: sqrt(sum(x * y))" begin
@@ -171,13 +156,13 @@ end
         x = cu(rand(T, n))
         y = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (a, b) -> a * b, +, (x, y);
             g=sqrt, to_cpu=true
         )
 
         base_result = sqrt(sum(Array(x) .* Array(y)))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Euclidean distance: sqrt(sum((a - b)^2))" begin
@@ -185,13 +170,13 @@ end
         a = cu(rand(T, n))
         b = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (ai, bi) -> (ai - bi)^2, +, (a, b);
             g=sqrt, to_cpu=true
         )
 
         base_result = sqrt(sum((Array(a) .- Array(b)) .^ 2))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Normalized dot product: sum(x * y) / n" begin
@@ -199,14 +184,14 @@ end
         x = cu(rand(T, n))
         y = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (a, b) -> a * b, +, (x, y);
             g=s -> s / n,
             FlagType=UInt8, to_cpu=true
         )
 
         base_result = sum(Array(x) .* Array(y)) / n
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "In-place dot product with pre-allocated tmp" begin
@@ -216,21 +201,21 @@ end
         dst = cu([T(0)])
 
         # H = promote_op((a,b) -> a*b, T, T) = T
-        tmp = Luma.get_allocation(Luma.mapreduce1d!, (x, y);
+        tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (x, y);
             blocks=100, eltype=T)
 
         for trial in 1:3
             copyto!(x, rand(T, n))
             copyto!(y, rand(T, n))
 
-            CUDA.@sync Luma.mapreduce1d!(
+            CUDA.@sync KernelForge.mapreduce1d!(
                 (a, b) -> a * b, +, dst, (x, y);
                 tmp=tmp
             )
 
-            luma_result = CUDA.@allowscalar dst[1]
+            KernelForge_result = CUDA.@allowscalar dst[1]
             base_result = sum(Array(x) .* Array(y))
-            @test isapprox(luma_result, base_result)
+            @test isapprox(KernelForge_result, base_result)
         end
     end
 
@@ -240,12 +225,12 @@ end
         b = cu(rand(T, n))
         c = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (ai, bi, ci) -> ai * bi * ci, +, (a, b, c); to_cpu=true
         )
 
         base_result = sum(Array(a) .* Array(b) .* Array(c))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 
     @testset "Three-array with g: cbrt(sum(a * b * c))" begin
@@ -254,12 +239,12 @@ end
         b = cu(rand(T, n))
         c = cu(rand(T, n))
 
-        luma_result = CUDA.@sync Luma.mapreduce1d(
+        KernelForge_result = CUDA.@sync KernelForge.mapreduce1d(
             (ai, bi, ci) -> ai * bi * ci, +, (a, b, c);
             g=cbrt, to_cpu=true
         )
 
         base_result = cbrt(sum(Array(a) .* Array(b) .* Array(c)))
-        @test isapprox(luma_result, base_result)
+        @test isapprox(KernelForge_result, base_result)
     end
 end

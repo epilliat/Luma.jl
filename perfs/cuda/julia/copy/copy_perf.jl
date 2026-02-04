@@ -3,7 +3,7 @@ using Pkg
 
 Pkg.activate("$(@__DIR__())/../../")
 
-using Luma
+using KernelForge
 using KernelAbstractions, CUDA, BenchmarkTools
 using AcceleratedKernels
 using Quaternions
@@ -21,10 +21,10 @@ Nitem = 1
 
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.vcopy!(dst, src, Nitem=Nitem)
+    KernelForge.vcopy!(dst, src, Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.vcopy!(dst, src; Nitem=Nitem)
+prof = CUDA.@profile KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 #%%
 n = 1000000
@@ -36,10 +36,10 @@ Nitem = 4
 
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.vcopy!(dst, src, Nitem=Nitem)
+    KernelForge.vcopy!(dst, src, Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.vcopy!(dst, src; Nitem=Nitem)
+prof = CUDA.@profile KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 
 #%%
@@ -54,10 +54,10 @@ Nitem = 8 #better
 
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.vcopy!(dst, src, Nitem=Nitem)
+    KernelForge.vcopy!(dst, src, Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.vcopy!(dst, src; Nitem=Nitem)
+prof = CUDA.@profile KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 #%%
 n = 1000000
@@ -69,10 +69,10 @@ Nitem = 4
 
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.vcopy!(dst, src, Nitem=Nitem)
+    KernelForge.vcopy!(dst, src, Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.vcopy!(dst, src; Nitem=Nitem)
+prof = CUDA.@profile KernelForge.vcopy!(dst, src; Nitem=Nitem)
 
 
 
@@ -82,7 +82,7 @@ prof = CUDA.@profile Luma.vcopy!(dst, src; Nitem=Nitem)
 
 #================== setvalue! =========================#
 #useful for rapid flag initialization !
-using Luma
+using KernelForge
 n = 1000000
 T = UInt8
 dst = CuArray{T}([1 for _ in (1:n)])
@@ -90,8 +90,8 @@ Nitem = 8 #better
 
 start_time = time()
 while time() - start_time < 0.500  # 500ms warm-up
-    Luma.setvalue!(dst, T(1), Nitem=Nitem)
+    KernelForge.setvalue!(dst, T(1), Nitem=Nitem)
 end
 
-prof = CUDA.@profile Luma.setvalue!(dst, T(1); Nitem=Nitem)
+prof = CUDA.@profile KernelForge.setvalue!(dst, T(1); Nitem=Nitem)
 

@@ -1,7 +1,7 @@
 #=
 MapReduce Performance Benchmarking Script
 ==========================================
-Compares Luma.mapreduce! against CUDA.mapreduce and AcceleratedKernels.mapreduce
+Compares KernelForge.mapreduce! against CUDA.mapreduce and AcceleratedKernels.mapreduce
 for Float32 and UnitFloat8 data types.
 
 Methodology:
@@ -15,8 +15,8 @@ using Revise
 using Pkg
 Pkg.activate("$(@__DIR__)/../../")
 
-using Luma
-using Luma: UnitFloat8
+using KernelForge
+using KernelForge: UnitFloat8
 using CUDA
 using KernelAbstractions
 using BenchmarkTools
@@ -31,12 +31,12 @@ using Printf
 const METHOD_COLORS = Dict(
     "CUDA" => colorant"#CC79A7",   # pink/mauve
     "AK" => colorant"#009E73",     # bluish green
-    "Luma" => colorant"#0072B2",   # blue
+    "Forge" => colorant"#0072B2",   # blue
     "CUB" => colorant"#00008B"     # dark blue
 )
 
-# Method order: CUDA -> AK -> Luma -> CUB
-const METHOD_ORDER = ["CUDA", "AK", "Luma", "CUB"]
+# Method order: CUDA -> AK -> KernelForge -> CUB
+const METHOD_ORDER = ["CUDA", "AK", "Forge", "CUB"]
 
 # Helper functions
 function warmup(f; duration=0.5)
@@ -160,8 +160,8 @@ function run_mapreduce_benchmarks_float32(n::Int; cub_exe::String="")
     println("MapReduce: n=$n, T=$T")
     println("="^60)
 
-    luma_stats = bench("Luma.mapreduce!", () -> Luma.mapreduce!(identity, +, dst, src))
     cuda_stats = bench("CUDA.mapreduce", () -> mapreduce(identity, +, src))
+    KernelForge_stats = bench("KernelForge.mapreduce!", () -> KernelForge.mapreduce!(identity, +, dst, src))
     ak_stats = bench("AcceleratedKernels", () -> AcceleratedKernels.mapreduce(identity, +, src; init=zero(T)))
 
     # CUB benchmark (if executable provided)
@@ -172,7 +172,7 @@ function run_mapreduce_benchmarks_float32(n::Int; cub_exe::String="")
         (; mean_kernel_μs=NaN, std_kernel_μs=NaN, mean_total_μs=NaN, std_total_μs=NaN)
     end
 
-    return (luma=luma_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
+    return (KernelForge=KernelForge_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
 end
 
 """
@@ -185,16 +185,16 @@ function run_mapreduce_benchmarks_unitfloat8(n::Int; cub_exe::String="")
     T = UnitFloat8
     src = CuArray([rand(T) for _ in 1:n])
     dst = CuArray{T}([T(0)])
-    f = Float32  # Promote to Float32 during reduction
+    f(x)::Float32 = Float32(x)  # Promote to Float32 during reduction
 
-    # Pre-allocate tmp for Luma
-    tmp = Luma.get_allocation(Luma.mapreduce1d!, (src,); blocks=1000, FlagType=UInt64)
+    # Pre-allocate tmp for KernelForge
+    tmp = KernelForge.get_allocation(KernelForge.mapreduce1d!, (src,); blocks=1000, FlagType=UInt64)
 
     println("\n" * "="^60)
     println("MapReduce: n=$n, T=$T (→Float32)")
     println("="^60)
 
-    luma_stats = bench("Luma.mapreduce!", () -> Luma.mapreduce!(f, +, dst, src; tmp))
+    KernelForge_stats = bench("KernelForge.mapreduce!", () -> KernelForge.mapreduce!(f, +, dst, src; tmp))
     cuda_stats = bench("CUDA.mapreduce", () -> mapreduce(f, +, src))
     ak_stats = bench("AcceleratedKernels", () -> AcceleratedKernels.mapreduce(f, +, src; init=T(0)))
 
@@ -207,7 +207,7 @@ function run_mapreduce_benchmarks_unitfloat8(n::Int; cub_exe::String="")
         (; mean_kernel_μs=NaN, std_kernel_μs=NaN, mean_total_μs=NaN, std_total_μs=NaN)
     end
 
-    return (luma=luma_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
+    return (KernelForge=KernelForge_stats, cuda=cuda_stats, ak=ak_stats, cub=cub_stats)
 end
 
 """
@@ -224,7 +224,7 @@ function run_all_benchmarks(sizes::Vector{Int};
         # Float32 benchmarks
         stats_f32 = run_mapreduce_benchmarks_float32(n; cub_exe)
 
-        for (method, method_stats) in [("Luma", stats_f32.luma),
+        for (method, method_stats) in [("Forge", stats_f32.KernelForge),
             ("CUDA", stats_f32.cuda),
             ("AK", stats_f32.ak),
             ("CUB", stats_f32.cub)]
@@ -242,7 +242,7 @@ function run_all_benchmarks(sizes::Vector{Int};
         # UnitFloat8 benchmarks
         stats_uf8 = run_mapreduce_benchmarks_unitfloat8(n; cub_exe)
 
-        for (method, method_stats) in [("Luma", stats_uf8.luma),
+        for (method, method_stats) in [("Forge", stats_uf8.KernelForge),
             ("CUDA", stats_uf8.cuda),
             ("AK", stats_uf8.ak),
             ("CUB", stats_uf8.cub)]
@@ -297,7 +297,7 @@ end
     plot_mapreduce_comparison(df::DataFrame, n::Int; kwargs...) -> Figure
 
 Create a grouped barplot comparing mapreduce implementations.
-Groups are data types (Float32, UnitFloat8), bars within groups are methods (CUDA, AK, Luma, CUB).
+Groups are data types (Float32, UnitFloat8), bars within groups are methods (CUDA, AK, KernelForge, CUB).
 Each bar is stacked: kernel time (solid) + overhead (alpha).
 Note: CUB has no overhead (pure kernel time measurement) and uses UInt8 as proxy for UnitFloat8.
 """
@@ -390,8 +390,8 @@ function plot_mapreduce_comparison(
         errorbars!(ax, data.x, data.kernel_vals_μs, data.err_vals_μs, color=:black, whiskerwidth=6)
 
         # Value labels with fixed spacing above bars
-        # Use bold font for Luma
-        label_font = method == "Luma" ? :bold : :regular
+        # Use bold font for KernelForge
+        label_font = method == "Forge" ? :bold : :regular
         for (i, (xi, ki, oi, ei)) in enumerate(zip(data.x, data.kernel_vals_μs, data.overhead_vals_μs, data.err_vals_μs))
             if ki > 0
                 bar_top = ki + oi
@@ -452,7 +452,7 @@ end
     plot_mapreduce_comparison_multi(df::DataFrame, sizes::Vector{Int}; kwargs...) -> Figure
 
 Create multiple grouped barplots side by side, one for each n value.
-Groups are data types (Float32, UnitFloat8), bars are methods (CUDA, AK, Luma, CUB).
+Groups are data types (Float32, UnitFloat8), bars are methods (CUDA, AK, KernelForge, CUB).
 Left plot uses μs, right plot uses ms.
 """
 function plot_mapreduce_comparison_multi(
@@ -541,8 +541,8 @@ function plot_mapreduce_comparison_multi(
             errorbars!(ax, data.x, data.kernel_vals, data.err_vals, color=:black, whiskerwidth=6)
 
             # Value labels with fixed spacing above bars
-            # Use bold font for Luma
-            label_font = method == "Luma" ? :bold : :regular
+            # Use bold font for KernelForge
+            label_font = method == "Forge" ? :bold : :regular
             for (i, (xi, ki, oi, ei)) in enumerate(zip(data.x, data.kernel_vals, data.overhead_vals, data.err_vals))
                 if ki > 0
                     bar_top = ki + oi
@@ -591,6 +591,7 @@ end
 =============================================================================#
 
 # Run benchmarks (1e6 and 1e8)
+run_mapreduce_benchmarks_float32(1000000) #test
 sizes = [1_000_000, 100_000_000]
 df = run_all_benchmarks(sizes)
 
